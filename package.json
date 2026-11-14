@@ -1,0 +1,12 @@
+{
+  "name": "facebook-auto-responder",
+  "version": "1.0.0",
+  "description": "Automated 24/7 Facebook Messenger Responder with PDF on Render",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["facebook", "bot", "messenger"],
+  "author": "Tech Info",
+  "license": "ISC"
+}
