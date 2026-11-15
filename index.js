@@ -70,6 +70,79 @@ function makeRequest(url, options = {}, postData = null) {
   });
 }
 
+// Helper: Follow HTTP redirects to resolve short links
+function getRedirectUrl(url) {
+  return new Promise((resolve) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      if (res.headers.location) {
+        resolve(res.headers.location);
+      } else {
+        resolve(null);
+      }
+    }).on('error', () => resolve(null));
+  });
+}
+
+// Helper: Smart Post ID Resolver (Handles URLs, share links, bare IDs, and text search)
+async function resolveFacebookPostId(input, pageId, token) {
+  if (!input) return '';
+  input = input.trim();
+
+  // 1. Direct PageID_PostID format (e.g. 1424795157375101_122093934621520437)
+  if (/^\d+_\d+$/.test(input)) {
+    return input;
+  }
+
+  // 2. Bare numeric ID (e.g. 122093934621520437)
+  if (/^\d{10,}$/.test(input)) {
+    return `${pageId}_${input}`;
+  }
+
+  // 3. Extract story_fbid or fbid from query parameters
+  const fbidMatch = input.match(/(?:story_fbid|fbid)=([0-9]+)/);
+  if (fbidMatch && fbidMatch[1]) {
+    return `${pageId}_${fbidMatch[1]}`;
+  }
+
+  // 4. Extract /posts/123456...
+  const postsMatch = input.match(/\/posts\/([0-9]+)/);
+  if (postsMatch && postsMatch[1]) {
+    return `${pageId}_${postsMatch[1]}`;
+  }
+
+  // 5. Follow redirect for share links (e.g. facebook.com/share/p/...)
+  if (input.includes('/share/p/') || input.includes('/share/')) {
+    try {
+      const redirected = await getRedirectUrl(input);
+      if (redirected) {
+        const redirectedFbid = redirected.match(/(?:story_fbid|fbid)=([0-9]+)/);
+        if (redirectedFbid && redirectedFbid[1]) {
+          return `${pageId}_${redirectedFbid[1]}`;
+        }
+      }
+    } catch (e) {
+      console.warn('[RESOLVE ERROR]', e.message);
+    }
+  }
+
+  // 6. Search in Page's recent posts by title / message text
+  try {
+    const postsUrl = `https://graph.facebook.com/v19.0/${pageId}/posts?fields=id,message&limit=30&access_token=${token}`;
+    const postsData = await makeRequest(postsUrl);
+    if (postsData && postsData.data) {
+      const found = postsData.data.find(p => p.message && p.message.toLowerCase().includes(input.toLowerCase()));
+      if (found) {
+        console.log(`[RESOLVED BY TITLE] "${input}" -> Post ID: ${found.id}`);
+        return found.id;
+      }
+    }
+  } catch (e) {
+    console.warn('[SEARCH ERROR]', e.message);
+  }
+
+  return input;
+}
+
 // Helper: Upload PDF Buffer to Facebook Send API (multipart/form-data)
 function uploadAttachmentToFacebook(fileBuffer, fileName, token) {
   return new Promise((resolve, reject) => {
@@ -315,7 +388,7 @@ function getAppHtml() {
     .btn-primary:active { transform: scale(0.98); }
     .btn-success { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); }
     .btn-secondary { background: #334155; color: #e2e8f0; }
-    .btn-sm { width: auto; padding: 6px 14px; font-size: 0.8rem; border-radius: 8px; }
+    .btn-sm { width: auto; padding: 8px 16px; font-size: 0.8rem; border-radius: 10px; }
 
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
     .stat-card { background: #1e293b; border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 16px; text-align: center; }
@@ -324,6 +397,11 @@ function getAppHtml() {
 
     .upload-box { border: 2px dashed #475569; border-radius: 14px; padding: 22px; text-align: center; background: rgba(15, 23, 42, 0.5); cursor: pointer; transition: 0.2s; }
     .upload-box:active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+
+    .post-item { background: #0f172a; border: 1px solid #334155; border-radius: 14px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 6px; }
+    .post-item:active, .post-item.selected { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+    .post-item-title { font-size: 0.88rem; font-weight: 700; color: #f1f5f9; line-height: 1.4; }
+    .post-item-meta { font-size: 0.75rem; color: #94a3b8; display: flex; justify-content: space-between; }
 
     .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #10b981; color: white; padding: 12px 24px; border-radius: 30px; font-size: 0.9rem; font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100; transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); display: flex; align-items: center; gap: 8px; }
     .toast.show { transform: translateX(-50%) translateY(0); }
@@ -401,14 +479,22 @@ function getAppHtml() {
     <!-- TAB 2: POST TARGET -->
     <div id="tab-post" class="page-tab">
       <div class="card">
-        <div class="card-title">🎯 تغيير المنشور المستهدف</div>
-        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 14px;">
-          انسخ رابط أي منشور جديد من فيسبوك وضعه هنا وسيقوم البوت بالانتقال إليه والرد على تعليقاته فوراً!
-        </p>
-        <div class="form-group">
-          <label class="form-label">رابط المنشور أو الـ ID:</label>
-          <input type="text" id="target_post_id" class="form-input" placeholder="مثال: 1424795157375101_122093934621520437">
+        <div class="card-title">🎯 اختيار أو تغيير المنشور المستهدف</div>
+        
+        <button class="btn btn-secondary" style="margin-bottom: 14px;" onclick="fetchPagePostsList()">
+          📋 جلب منشورات الصفحة واختيار المنشور مباشرة بنقرة واحدة
+        </button>
+
+        <div id="posts-list-container" style="display: none; max-height: 280px; overflow-y: auto; margin-bottom: 14px; border: 1px solid #334155; border-radius: 12px; padding: 8px;">
         </div>
+
+        <div class="form-group">
+          <label class="form-label">أو ضع رابط المنشور / الـ ID / عنوان المنشور يدوياً:</label>
+          <input type="text" id="target_post_id" class="form-input" placeholder="مثال: https://facebook.com/... أو ID">
+        </div>
+
+        <div id="resolved-info" style="display: none; background: rgba(59, 130, 246, 0.15); border: 1px solid #3b82f6; border-radius: 10px; padding: 10px; font-size: 0.8rem; color: #93c5fd; margin-bottom: 14px;"></div>
+
         <button class="btn btn-primary" onclick="saveConfiguration()">حفظ وتطبيق المنشور فوراً 💾</button>
       </div>
     </div>
@@ -479,7 +565,6 @@ function getAppHtml() {
 
   </main>
 
-  <!-- Bottom Navigation Menu -->
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="switchTab('dash', this)">
       <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
@@ -572,6 +657,49 @@ function getAppHtml() {
         });
     }
 
+    function fetchPagePostsList() {
+      const pin = localStorage.getItem('bot_pin') || '';
+      const container = document.getElementById('posts-list-container');
+      container.style.display = 'block';
+      container.innerHTML = '<div style=\"text-align: center; color: #94a3b8; padding: 10px;\">جاري جلب المنشورات من فيسبوك... ⏳</div>';
+
+      fetch('/api/page-posts?pin=' + encodeURIComponent(pin))
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success || !data.posts || data.posts.length === 0) {
+            container.innerHTML = '<div style=\"text-align: center; color: #ef4444; padding: 10px;\">تعذر جلب المنشورات. تأكد من صحة التوكن ومعرف الصفحة.</div>';
+            return;
+          }
+
+          let html = '';
+          data.posts.forEach(p => {
+            const cleanText = p.message ? p.message.substring(0, 100) : '(منشور صورة / وسائط)';
+            const dateStr = new Date(p.created_time).toLocaleDateString('ar-EG');
+            html += \`
+              <div class="post-item" onclick="selectPostItem('\${p.id}', '\${cleanText.replace(/'/g, "\\\\'")}')">
+                <div class="post-item-title">\${cleanText}</div>
+                <div class="post-item-meta">
+                  <span>🆔 \${p.id}</span>
+                  <span>📅 \${dateStr}</span>
+                </div>
+              </div>
+            \`;
+          });
+          container.innerHTML = html;
+        })
+        .catch(() => {
+          container.innerHTML = '<div style=\"text-align: center; color: #ef4444; padding: 10px;\">خطأ في الاتصال بالفيسبوك</div>';
+        });
+    }
+
+    function selectPostItem(postId, title) {
+      document.getElementById('target_post_id').value = postId;
+      const info = document.getElementById('resolved-info');
+      info.style.display = 'block';
+      info.innerText = 'تم تحديد المنشور: ' + title + ' (' + postId + ')';
+      showToast('تم تحديد المنشور! اضغط حفظ وتطبيق ✓');
+    }
+
     function saveConfiguration() {
       const pin = localStorage.getItem('bot_pin') || '';
       const payload = {
@@ -596,6 +724,9 @@ function getAppHtml() {
       .then(data => {
         if (data.success) {
           if (newPin) localStorage.setItem('bot_pin', newPin);
+          if (data.resolved_post_id) {
+            document.getElementById('target_post_id').value = data.resolved_post_id;
+          }
           showToast('تم حفظ وتطبيق التغييرات بنجاح! ✓');
           loadData();
         } else {
@@ -697,6 +828,32 @@ const server = http.createServer(async (req, res) => {
     return pin === config.admin_pin;
   }
 
+  // API: Get Page's Recent Posts for 1-click Selection
+  if (pathname === '/api/page-posts' && req.method === 'GET') {
+    if (!isAuth(parsedUrl)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const postsUrl = `https://graph.facebook.com/v19.0/${config.page_id}/posts?fields=id,message,created_time,permalink_url&limit=15&access_token=${config.access_token}`;
+      const postsData = await makeRequest(postsUrl);
+
+      if (postsData && postsData.data) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, posts: postsData.data }));
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Could not fetch posts' }));
+      }
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: e.message }));
+    }
+    return;
+  }
+
   if (pathname === '/api/config' && req.method === 'GET') {
     if (!isAuth(parsedUrl)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -719,7 +876,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/config' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const data = JSON.parse(body);
         if (!isAuth(parsedUrl, data)) {
@@ -731,23 +888,33 @@ const server = http.createServer(async (req, res) => {
         const oldPostId = config.target_post_id;
 
         if (data.page_id) config.page_id = data.page_id;
-        if (data.target_post_id) config.target_post_id = data.target_post_id;
         if (data.access_token) config.access_token = data.access_token;
         if (data.attachment_id) config.attachment_id = data.attachment_id;
         if (data.private_message) config.private_message = data.private_message;
         if (data.public_replies && Array.isArray(data.public_replies)) config.public_replies = data.public_replies;
         if (data.admin_pin) config.admin_pin = data.admin_pin;
 
+        // Smart Post ID Resolution
+        let resolvedPostId = config.target_post_id;
+        if (data.target_post_id) {
+          resolvedPostId = await resolveFacebookPostId(data.target_post_id, config.page_id, config.access_token);
+          config.target_post_id = resolvedPostId;
+        }
+
         if (oldPostId !== config.target_post_id) {
           processedComments.clear();
           processingComments.clear();
-          console.log(`[CONFIG UPDATE] Target Post ID changed to: ${config.target_post_id}`);
+          console.log(`[CONFIG UPDATE] Target Post ID changed from "${oldPostId}" to: "${config.target_post_id}"`);
         }
 
         saveConfig();
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Configuration updated successfully' }));
+        res.end(JSON.stringify({
+          success: true,
+          resolved_post_id: config.target_post_id,
+          message: 'Configuration updated successfully'
+        }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, message: e.message }));
