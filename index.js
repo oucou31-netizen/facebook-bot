@@ -5,6 +5,7 @@ const path = require('path');
 
 // Config file path
 const CONFIG_FILE = path.join(__dirname, 'config.json');
+const PROCESSED_IDS_FILE = path.join(__dirname, 'processed_ids.json');
 
 // Default initial config
 let config = {
@@ -13,12 +14,16 @@ let config = {
   target_post_id: process.env.TARGET_POST_ID || "1424795157375101_122093934621520437",
   access_token: process.env.ACCESS_TOKEN || "EAAuuUwQY1zIBSzNNc26whvNxX61CvFdkhhKqbH0Fei8kUZAoFxusKEW0akCUS3iJqypk5YhlZByirvRI6ADKMnAK7D6QOwehHAFXsAHDWtpE4dwpv2YqEf6QZC13CYZCFyMiuTlZBnasbbrUItZBVzD6GcZAUK6buZAwZC0RBkBnKabePcTyXDPXf5piKZCzBYZAKFqETSv57YQIXZCtZCJ2Al5qxGDl4",
   attachment_id: process.env.ATTACHMENT_ID || "1145582601544384",
-  private_message: "أهلاً بك! تفضل ملف الـ PDF المطلوب 📄\n\nتابع صفحتنا للاستفادة من كل جديد ومفيد قادماً 🌟",
+  attachment_type: process.env.ATTACHMENT_TYPE || "file",
+  enable_like: true,
+  enable_public_reply: true,
+  enable_private_reply: true,
+  private_message: "أهلاً بك! تفضل المطلوب 🌟\n\nتابع صفحتنا للاستفادة من كل جديد ومفيد قادماً 👍",
   public_replies: [
-    "تم إرسال الملف في الخاص، شكراً لتفاعلك 📩",
-    "أهلاً بك! تفقد صندوق الرسائل لديك، تم إرسال الملف 👍",
-    "تم الرد وإرسال الملف المطلوب في الخاص، بالتوفيق ✨",
-    "شكراً لاهتمامك! الملف جاهز في رسائل صفحتك 📥"
+    "تم الرد وإرسال التفاصيل في الخاص، شكراً لتفاعلك 📩",
+    "أهلاً بك! تفقد صندوق الرسائل لديك، تم الرد بنجاح 👍",
+    "تم الرد في الخاص، بالتوفيق لك ✨",
+    "شكراً لاهتمامك! راجع رسائل صفحتك 📥"
   ]
 };
 
@@ -46,6 +51,27 @@ let totalRepliesSent = 0;
 let lastActionLog = "السيرفر يعمل وجاهز لاستقبال التعليقات.";
 const processingComments = new Set();
 const processedComments = new Set();
+
+// Load persistent processed comment IDs
+if (fs.existsSync(PROCESSED_IDS_FILE)) {
+  try {
+    const savedIds = JSON.parse(fs.readFileSync(PROCESSED_IDS_FILE, 'utf8'));
+    if (Array.isArray(savedIds)) {
+      savedIds.forEach(id => processedComments.add(id));
+      console.log(`[INIT] Loaded ${savedIds.length} processed comment IDs from disk.`);
+    }
+  } catch (e) {
+    console.warn('[INIT] Could not read processed_ids.json:', e.message);
+  }
+}
+
+function recordProcessedComment(commentId) {
+  processedComments.add(commentId);
+  try {
+    const ids = Array.from(processedComments).slice(-1000);
+    fs.writeFileSync(PROCESSED_IDS_FILE, JSON.stringify(ids), 'utf8');
+  } catch (e) {}
+}
 
 // Helper: HTTP request wrapper returning Promise
 function makeRequest(url, options = {}, postData = null) {
@@ -83,75 +109,51 @@ function getRedirectUrl(url) {
   });
 }
 
-// Helper: Smart Post ID Resolver (Handles URLs, share links, bare IDs, and text search)
+// Helper: Smart Post ID Resolver
 async function resolveFacebookPostId(input, pageId, token) {
   if (!input) return '';
   input = input.trim();
 
-  // 1. Direct PageID_PostID format (e.g. 1424795157375101_122093934621520437)
-  if (/^\d+_\d+$/.test(input)) {
-    return input;
-  }
+  if (/^\d+_\d+$/.test(input)) return input;
+  if (/^\d{10,}$/.test(input)) return `${pageId}_${input}`;
 
-  // 2. Bare numeric ID (e.g. 122093934621520437)
-  if (/^\d{10,}$/.test(input)) {
-    return `${pageId}_${input}`;
-  }
-
-  // 3. Extract story_fbid or fbid from query parameters
   const fbidMatch = input.match(/(?:story_fbid|fbid)=([0-9]+)/);
-  if (fbidMatch && fbidMatch[1]) {
-    return `${pageId}_${fbidMatch[1]}`;
-  }
+  if (fbidMatch && fbidMatch[1]) return `${pageId}_${fbidMatch[1]}`;
 
-  // 4. Extract /posts/123456...
   const postsMatch = input.match(/\/posts\/([0-9]+)/);
-  if (postsMatch && postsMatch[1]) {
-    return `${pageId}_${postsMatch[1]}`;
-  }
+  if (postsMatch && postsMatch[1]) return `${pageId}_${postsMatch[1]}`;
 
-  // 5. Follow redirect for share links (e.g. facebook.com/share/p/...)
   if (input.includes('/share/p/') || input.includes('/share/')) {
     try {
       const redirected = await getRedirectUrl(input);
       if (redirected) {
         const redirectedFbid = redirected.match(/(?:story_fbid|fbid)=([0-9]+)/);
-        if (redirectedFbid && redirectedFbid[1]) {
-          return `${pageId}_${redirectedFbid[1]}`;
-        }
+        if (redirectedFbid && redirectedFbid[1]) return `${pageId}_${redirectedFbid[1]}`;
       }
-    } catch (e) {
-      console.warn('[RESOLVE ERROR]', e.message);
-    }
+    } catch (e) {}
   }
 
-  // 6. Search in Page's recent posts by title / message text
   try {
     const postsUrl = `https://graph.facebook.com/v19.0/${pageId}/posts?fields=id,message&limit=30&access_token=${token}`;
     const postsData = await makeRequest(postsUrl);
     if (postsData && postsData.data) {
       const found = postsData.data.find(p => p.message && p.message.toLowerCase().includes(input.toLowerCase()));
-      if (found) {
-        console.log(`[RESOLVED BY TITLE] "${input}" -> Post ID: ${found.id}`);
-        return found.id;
-      }
+      if (found) return found.id;
     }
-  } catch (e) {
-    console.warn('[SEARCH ERROR]', e.message);
-  }
+  } catch (e) {}
 
   return input;
 }
 
-// Helper: Upload PDF Buffer to Facebook Send API (multipart/form-data)
-function uploadAttachmentToFacebook(fileBuffer, fileName, token) {
+// Helper: Upload Media to Facebook Send API (multipart/form-data)
+function uploadAttachmentToFacebook(fileBuffer, fileName, attachType, mimeType, token) {
   return new Promise((resolve, reject) => {
     const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
     const crlf = '\r\n';
 
     const messageJson = JSON.stringify({
       attachment: {
-        type: 'file',
+        type: attachType,
         payload: { is_reusable: true }
       }
     });
@@ -162,7 +164,7 @@ function uploadAttachmentToFacebook(fileBuffer, fileName, token) {
       `${messageJson}${crlf}` +
       `--${boundary}${crlf}` +
       `Content-Disposition: form-data; name="filedata"; filename="${fileName}"${crlf}` +
-      `Content-Type: application/pdf${crlf}${crlf}`
+      `Content-Type: ${mimeType || 'application/octet-stream'}${crlf}${crlf}`
     );
 
     const footerPart = Buffer.from(`${crlf}--${boundary}--${crlf}`);
@@ -222,7 +224,7 @@ async function likeComment(commentId) {
 // 2. Public Reply
 async function replyPublicComment(commentId) {
   try {
-    const replies = config.public_replies.length > 0 ? config.public_replies : ["تم إرسال الملف في الخاص 📩"];
+    const replies = config.public_replies.length > 0 ? config.public_replies : ["تم الرد في الخاص 📩"];
     const randomReply = replies[Math.floor(Math.random() * replies.length)];
     const url = `https://graph.facebook.com/v19.0/${commentId}/comments?access_token=${config.access_token}`;
     const payload = { message: randomReply };
@@ -239,11 +241,11 @@ async function replyPublicComment(commentId) {
   }
 }
 
-// 3. Send Private Message & PDF
-async function sendPrivateMessageAndPdf(commentId, senderId, senderName) {
+// 3. Send Private Message & Media
+async function sendPrivateMessageAndMedia(commentId, senderId, senderName) {
   const delayMs = getRandomInt(10000, 20000);
   const delaySec = Math.round(delayMs / 1000);
-  console.log(`[DELAY] Waiting ${delaySec}s before sending private message & PDF...`);
+  console.log(`[DELAY] Waiting ${delaySec}s before sending private message...`);
 
   await sleep(delayMs);
 
@@ -261,39 +263,46 @@ async function sendPrivateMessageAndPdf(commentId, senderId, senderName) {
 
     let targetRecipientId = senderId;
     if (textRes && textRes.message_id) {
-      console.log(`[OK] Private message delivered (ID: ${textRes.message_id})`);
+      console.log(`[OK] Private text message delivered (ID: ${textRes.message_id})`);
       if (textRes.recipient_id) {
         targetRecipientId = textRes.recipient_id;
       }
     }
 
-    if (config.attachment_id && targetRecipientId) {
-      const filePayload = {
+    const attachType = config.attachment_type || 'none';
+    if (attachType !== 'none' && config.attachment_id && targetRecipientId) {
+      const isUrl = /^https?:\/\//i.test(config.attachment_id);
+      const mediaPayload = {
         recipient: { id: targetRecipientId },
         message: {
           attachment: {
-            type: 'file',
-            payload: { attachment_id: config.attachment_id }
+            type: attachType,
+            payload: isUrl
+              ? { url: config.attachment_id, is_reusable: true }
+              : { attachment_id: config.attachment_id }
           }
         }
       };
 
-      const fileRes = await makeRequest(textUrl, {
+      const mediaRes = await makeRequest(textUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
-      }, filePayload);
+      }, mediaPayload);
 
-      if (fileRes && fileRes.message_id) {
-        console.log(`[OK] PDF delivered to ${senderName}`);
-        totalRepliesSent++;
-        lastActionLog = `تم إرسال الملف والرد بنجاح للمُعلق: ${senderName} في ${new Date().toLocaleTimeString('ar-EG')}`;
+      if (mediaRes && mediaRes.message_id) {
+        console.log(`[OK] Media [${attachType.toUpperCase()}] delivered to ${senderName}`);
       }
     }
+
+    totalRepliesSent++;
+    const typeLabel = attachType === 'none' ? 'نص فقط' : (attachType === 'image' ? 'صورة' : (attachType === 'video' ? 'فيديو' : 'ملف PDF'));
+    lastActionLog = `تم الرد بنجاح (${typeLabel}) للمُعلق: ${senderName} في ${new Date().toLocaleTimeString('ar-EG')}`;
+
   } catch (err) {
     console.error(`[ERROR] Failed to send private message:`, err.message);
   } finally {
     processingComments.delete(commentId);
-    processedComments.add(commentId);
+    recordProcessedComment(commentId);
   }
 }
 
@@ -309,7 +318,7 @@ async function processNewComment(comment) {
   if (comment.comments && comment.comments.data && Array.isArray(comment.comments.data)) {
     const alreadyRepliedByPage = comment.comments.data.some(sub => sub.from && sub.from.id === config.page_id);
     if (alreadyRepliedByPage) {
-      processedComments.add(cId);
+      recordProcessedComment(cId);
       return;
     }
   }
@@ -317,14 +326,34 @@ async function processNewComment(comment) {
   if (processedComments.has(cId) || processingComments.has(cId)) return;
 
   processingComments.add(cId);
-  processedComments.add(cId);
+  recordProcessedComment(cId);
 
   console.log(`\n==================================================`);
   console.log(`[NEW UNREPLIED COMMENT] ID: ${cId} | From: ${senderName} | Text: "${comment.message || ''}"`);
 
-  await likeComment(cId);
-  await replyPublicComment(cId);
-  await sendPrivateMessageAndPdf(cId, senderId, senderName);
+  // 1. Like comment
+  if (config.enable_like !== false) {
+    await likeComment(cId);
+  } else {
+    console.log(`[SKIP] الإعجاب بالتعليق معطل.`);
+  }
+
+  // 2. Public comment reply
+  if (config.enable_public_reply !== false) {
+    await replyPublicComment(cId);
+  } else {
+    console.log(`[SKIP] الرد العام على التعليق معطل.`);
+  }
+
+  // 3. Private message in Messenger
+  if (config.enable_private_reply !== false) {
+    await sendPrivateMessageAndMedia(cId, senderId, senderName);
+  } else {
+    console.log(`[SKIP] إرسال رسالة في الخاص معطل.`);
+    totalRepliesSent++;
+    lastActionLog = `تم معالجة تعليق ${senderName} (الخاص معطل) في ${new Date().toLocaleTimeString('ar-EG')}`;
+    processingComments.delete(cId);
+  }
 }
 
 // Main Cron Loop
@@ -382,6 +411,21 @@ function getAppHtml() {
     .form-input, .form-textarea { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px 14px; color: #f8fafc; font-size: 0.9rem; outline: none; transition: all 0.2s; }
     .form-input:focus, .form-textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25); }
     .form-textarea { resize: vertical; min-height: 80px; }
+
+    .type-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .type-option { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; transition: all 0.2s; font-size: 0.85rem; font-weight: 700; color: #cbd5e1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .type-option:active, .type-option.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); color: #60a5fa; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); }
+    .type-option-icon { font-size: 1.4rem; }
+
+    .switch-container { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #0f172a; border-radius: 14px; margin-bottom: 10px; border: 1px solid #334155; }
+    .switch-label { display: flex; align-items: center; gap: 12px; font-size: 0.88rem; font-weight: 700; color: #f1f5f9; }
+    .switch-sub { font-size: 0.72rem; color: #94a3b8; display: block; margin-top: 2px; font-weight: 400; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .25s; border-radius: 26px; }
+    .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .25s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+    input:checked + .slider { background-color: #10b981; }
+    input:checked + .slider:before { transform: translateX(22px); }
 
     .btn { width: 100%; padding: 13px; border-radius: 12px; border: none; font-size: 0.95rem; font-weight: 700; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; transition: all 0.2s; }
     .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35); }
@@ -451,8 +495,56 @@ function getAppHtml() {
           <div class="stat-value" id="stat-replies">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">حالة الفحص التلقائي</div>
-          <div class="stat-value" style="font-size: 1.1rem; color: #34d399; margin-top: 8px;">كل 20 ثانية ⚡</div>
+          <div class="stat-label">نوع المرفق الحالي</div>
+          <div class="stat-value" id="stat-attach-type" style="font-size: 1.05rem; color: #38bdf8; margin-top: 8px;">ملف PDF 📄</div>
+        </div>
+      </div>
+
+      <!-- AUTOMATION SWITCHES CARD -->
+      <div class="card" style="border: 1px solid rgba(59, 130, 246, 0.35);">
+        <div class="card-title" style="color: #60a5fa;">⚡ التحكم الفوري في إجراءات البوت</div>
+        <p style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 12px;">تحكّم بما يقوم به البوت فور وصول أي تعليق جديد (حفظ فوري):</p>
+
+        <div class="switch-container">
+          <div class="switch-label">
+            <span style="font-size: 1.3rem;">👍</span>
+            <div>
+              <div>الإعجاب بالتعليق</div>
+              <span class="switch-sub">وضع لايك تلقائي على تعليق المتابع</span>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable_like" onchange="toggleQuickSetting('enable_like', this)">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-container">
+          <div class="switch-label">
+            <span style="font-size: 1.3rem;">💬</span>
+            <div>
+              <div>الرد العام على التعليق</div>
+              <span class="switch-sub">نشر رد علني في التعليقات (تم الرد...)</span>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable_public_reply" onchange="toggleQuickSetting('enable_public_reply', this)">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-container" style="margin-bottom: 0;">
+          <div class="switch-label">
+            <span style="font-size: 1.3rem;">📩</span>
+            <div>
+              <div>إرسال رسالة في الخاص</div>
+              <span class="switch-sub">إرسال رسالة ماسنجر مع المرفق المحدد</span>
+            </div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable_private_reply" onchange="toggleQuickSetting('enable_private_reply', this)">
+            <span class="slider"></span>
+          </label>
         </div>
       </div>
 
@@ -461,7 +553,7 @@ function getAppHtml() {
         <div style="background: #0f172a; padding: 12px; border-radius: 12px; font-size: 0.85rem; color: #38bdf8; word-break: break-all; margin-bottom: 12px;" id="current-post-display">
           جاري التحميل...
         </div>
-        <div class="card-title" style="margin-top: 14px;">📄 ملف الـ PDF المرتبط</div>
+        <div class="card-title" style="margin-top: 14px;">📎 المرفق الحالي المرتبط</div>
         <div style="background: #0f172a; padding: 12px; border-radius: 12px; font-size: 0.85rem; color: #a7f3d0; word-break: break-all;" id="current-file-display">
           جاري التحميل...
         </div>
@@ -499,41 +591,87 @@ function getAppHtml() {
       </div>
     </div>
 
-    <!-- TAB 3: FILE UPLOAD -->
+    <!-- TAB 3: MEDIA & FILE UPLOAD -->
     <div id="tab-file" class="page-tab">
       <div class="card">
-        <div class="card-title">📤 رفع ملف PDF جديد من الهاتف</div>
-        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 14px;">
-          اختر أي ملف PDF مخزن في هاتفك واضغط "رفع"، وسيتكفل السيرفر برفعه لفيسبوك واستخراج المعرف وربطه بالبوت فوراً!
-        </p>
+        <div class="card-title">📎 تحديد نوع المرفق في رسالة الخاص</div>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;">اختر ماذا تريد إرساله مع الرسالة للجمهور:</p>
 
-        <div class="upload-box" onclick="document.getElementById('pdf-file-input').click()">
-          <div style="font-size: 2.2rem; margin-bottom: 8px;">📑</div>
-          <div style="font-weight: 700; font-size: 0.95rem; color: #e2e8f0;" id="file-name-label">اضغط لاختيار ملف PDF من هاتفك</div>
-          <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">يدعم ملفات PDF بجميع الأحجام</div>
+        <div class="type-selector">
+          <div class="type-option" id="type-opt-none" onclick="selectAttachmentType('none')">
+            <span class="type-option-icon">🚫</span>
+            <span>بدون مرفق</span>
+            <span style="font-size: 0.7rem; color: #64748b;">(إرسال نص فقط)</span>
+          </div>
+          <div class="type-option" id="type-opt-image" onclick="selectAttachmentType('image')">
+            <span class="type-option-icon">🖼️</span>
+            <span>صورة مباشرة</span>
+            <span style="font-size: 0.7rem; color: #64748b;">(تظهر في الشات فورا)</span>
+          </div>
+          <div class="type-option" id="type-opt-video" onclick="selectAttachmentType('video')">
+            <span class="type-option-icon">🎥</span>
+            <span>فيديو مباشر</span>
+            <span style="font-size: 0.7rem; color: #64748b;">(يُعرض ويُشغّل في الشات)</span>
+          </div>
+          <div class="type-option" id="type-opt-file" onclick="selectAttachmentType('file')">
+            <span class="type-option-icon">📄</span>
+            <span>ملف PDF / مستند</span>
+            <span style="font-size: 0.7rem; color: #64748b;">(ملف للتحميل)</span>
+          </div>
         </div>
-        <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;" onchange="onFileSelected(this)">
 
-        <button id="btn-upload" class="btn btn-success" style="margin-top: 14px;" onclick="uploadSelectedPdf()" disabled>
-          رفع الملف واستخراج المعرف لفيسبوك 🚀
-        </button>
+        <input type="hidden" id="attachment_type" value="file">
 
-        <div style="margin-top: 18px; border-top: 1px solid #334155; padding-top: 14px;">
-          <label class="form-label">معرف الملف الحالي (Attachment ID):</label>
-          <input type="text" id="attachment_id" class="form-input" placeholder="Attachment ID">
+        <div id="upload-controls-section">
+          <div class="card-title" style="margin-top: 16px;">📤 رفع الصورة / الفيديو / الملف من الهاتف</div>
+          <div class="upload-box" onclick="document.getElementById('media-file-input').click()">
+            <div style="font-size: 2.2rem; margin-bottom: 8px;" id="upload-icon-preview">📁</div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: #e2e8f0;" id="file-name-label">اضغط لاختيار صورة، فيديو، أو ملف PDF</div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;" id="file-sub-label">يتم الرفع لفيسبوك وعرضه مباشرة</div>
+          </div>
+          <input type="file" id="media-file-input" accept="image/*,video/*,application/pdf" style="display: none;" onchange="onFileSelected(this)">
+
+          <button id="btn-upload" class="btn btn-success" style="margin-top: 14px;" onclick="uploadSelectedMedia()" disabled>
+            رفع واحتساب المعرف تلقائياً 🚀
+          </button>
+
+          <div style="margin-top: 18px; border-top: 1px solid #334155; padding-top: 14px;">
+            <label class="form-label">معرف المرفق الحالي (Attachment ID):</label>
+            <input type="text" id="attachment_id" class="form-input" placeholder="Attachment ID">
+          </div>
         </div>
+
+        <button class="btn btn-primary" style="margin-top: 16px;" onclick="saveConfiguration()">حفظ خيارات المرفق 💾</button>
       </div>
     </div>
 
     <!-- TAB 4: MESSAGES -->
     <div id="tab-msg" class="page-tab">
       <div class="card">
-        <div class="card-title">💬 رسالة الخاص (التي تُرسل مع ملف الـ PDF)</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div class="card-title" style="margin: 0;">💬 رسالة الخاص (ماسنجر)</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.75rem; color: #94a3b8;">إرسال الخاص:</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="enable_private_reply_tab4" onchange="syncToggle('enable_private_reply', this)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
         <div class="form-group">
           <textarea id="private_message" class="form-textarea" rows="4"></textarea>
         </div>
 
-        <div class="card-title" style="margin-top: 16px;">🗨️ الردود العامة المتنوعة على التعليقات</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 18px 0 8px 0; border-top: 1px solid #334155; padding-top: 14px;">
+          <div class="card-title" style="margin: 0;">🗨️ الردود العامة على التعليقات</div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.75rem; color: #94a3b8;">الرد بالتعليق:</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="enable_public_reply_tab4" onchange="syncToggle('enable_public_reply', this)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
         <p style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px;">ضع كل رد في سطر منفصل ليقوم البوت باختيار رد عشوائي منها:</p>
         <div class="form-group">
           <textarea id="public_replies" class="form-textarea" rows="5"></textarea>
@@ -576,7 +714,7 @@ function getAppHtml() {
     </button>
     <button class="nav-item" onclick="switchTab('file', this)">
       <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-      الملف
+      المرفق
     </button>
     <button class="nav-item" onclick="switchTab('msg', this)">
       <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
@@ -591,6 +729,7 @@ function getAppHtml() {
   <script>
     let selectedFileBuffer = null;
     let selectedFileName = '';
+    let selectedFileMime = '';
 
     window.onload = function() {
       const savedPin = localStorage.getItem('bot_pin');
@@ -636,6 +775,33 @@ function getAppHtml() {
       el.classList.add('active');
     }
 
+    function selectAttachmentType(type) {
+      document.getElementById('attachment_type').value = type;
+      document.querySelectorAll('.type-option').forEach(o => o.classList.remove('active'));
+      const activeEl = document.getElementById('type-opt-' + type);
+      if (activeEl) activeEl.classList.add('active');
+
+      const uploadSec = document.getElementById('upload-controls-section');
+      if (type === 'none') {
+        uploadSec.style.display = 'none';
+        showToast('تم ضبط الإرسال: نص فقط بدون مرفقات');
+      } else {
+        uploadSec.style.display = 'block';
+        const iconPreview = document.getElementById('upload-icon-preview');
+        const subLabel = document.getElementById('file-sub-label');
+        if (type === 'image') {
+          iconPreview.innerText = '🖼️';
+          subLabel.innerText = 'الصورة ستظهر مباشرة داخل محادثة الماسنجر دون تحميل';
+        } else if (type === 'video') {
+          iconPreview.innerText = '🎥';
+          subLabel.innerText = 'الفيديو سيُعرض بمشغل مباشر داخل الشات دون الحاجة لتحميله';
+        } else {
+          iconPreview.innerText = '📄';
+          subLabel.innerText = 'ملف PDF أو مستند';
+        }
+      }
+    }
+
     function loadData() {
       const pin = localStorage.getItem('bot_pin') || '';
       fetch('/api/config?pin=' + encodeURIComponent(pin))
@@ -648,13 +814,82 @@ function getAppHtml() {
           document.getElementById('access_token').value = c.access_token || '';
           document.getElementById('attachment_id').value = c.attachment_id || '';
           document.getElementById('private_message').value = c.private_message || '';
-          document.getElementById('public_replies').value = (c.public_replies || []).join('\\n');
+          document.getElementById('public_replies').value = (c.public_replies || []).join('\n');
+
+          const enableLike = c.enable_like !== false;
+          const enablePublicReply = c.enable_public_reply !== false;
+          const enablePrivateReply = c.enable_private_reply !== false;
+
+          const elLike = document.getElementById('enable_like');
+          if (elLike) elLike.checked = enableLike;
+
+          const elPublic = document.getElementById('enable_public_reply');
+          if (elPublic) elPublic.checked = enablePublicReply;
+          const elPublicTab4 = document.getElementById('enable_public_reply_tab4');
+          if (elPublicTab4) elPublicTab4.checked = enablePublicReply;
+
+          const elPrivate = document.getElementById('enable_private_reply');
+          if (elPrivate) elPrivate.checked = enablePrivateReply;
+          const elPrivateTab4 = document.getElementById('enable_private_reply_tab4');
+          if (elPrivateTab4) elPrivateTab4.checked = enablePrivateReply;
+
+          const attachType = c.attachment_type || 'file';
+          selectAttachmentType(attachType);
+
+          const typeLabelMap = { none: 'نص فقط (بدون مرفق)', image: 'صورة مباشرة 🖼️', video: 'فيديو مباشر 🎥', file: 'ملف PDF 📄' };
+          document.getElementById('stat-attach-type').innerText = typeLabelMap[attachType] || 'ملف PDF 📄';
 
           document.getElementById('current-post-display').innerText = c.target_post_id || 'لم يُحدد منشور بعد';
-          document.getElementById('current-file-display').innerText = c.attachment_id ? ('معرف الملف: ' + c.attachment_id) : 'لم يتم رفع ملف بعد';
+          document.getElementById('current-file-display').innerText = attachType === 'none' ? 'لا يوجد مرفق (إرسال رسالة نصية فقط)' : (c.attachment_id ? ('معرف المرفق: ' + c.attachment_id) : 'لم يتم رفع مرفق بعد');
           document.getElementById('stat-replies').innerText = data.stats.totalRepliesSent || 0;
           document.getElementById('last-activity-log').innerText = data.stats.lastActionLog || 'السيرفر جاهز ويعمل.';
         });
+    }
+
+    function toggleQuickSetting(key, checkbox) {
+      const pin = localStorage.getItem('bot_pin') || '';
+      const tab4El = document.getElementById(key + '_tab4');
+      if (tab4El && tab4El !== checkbox) tab4El.checked = checkbox.checked;
+      const mainEl = document.getElementById(key);
+      if (mainEl && mainEl !== checkbox) mainEl.checked = checkbox.checked;
+
+      const payload = {
+        pin: pin,
+        [key]: checkbox.checked
+      };
+
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const names = {
+            enable_like: 'الإعجاب بالتعليق 👍',
+            enable_public_reply: 'الرد بالتعليق 💬',
+            enable_private_reply: 'إرسال الخاص 📩'
+          };
+          const stateStr = checkbox.checked ? 'مُفعّل ✓' : 'مُعطّل ⏸️';
+          showToast((names[key] || 'الإجراء') + ': ' + stateStr);
+        } else {
+          showToast('تعذر تغيير الإعداد', true);
+          checkbox.checked = !checkbox.checked;
+          if (tab4El) tab4El.checked = checkbox.checked;
+          if (mainEl) mainEl.checked = checkbox.checked;
+        }
+      })
+      .catch(() => {
+        showToast('خطأ في الاتصال بالسيرفر', true);
+        checkbox.checked = !checkbox.checked;
+        if (tab4El) tab4El.checked = checkbox.checked;
+        if (mainEl) mainEl.checked = checkbox.checked;
+      });
+    }
+
+    function syncToggle(key, tab4Checkbox) {
+      toggleQuickSetting(key, tab4Checkbox);
     }
 
     function fetchPagePostsList() {
@@ -708,8 +943,12 @@ function getAppHtml() {
         target_post_id: document.getElementById('target_post_id').value.trim(),
         access_token: document.getElementById('access_token').value.trim(),
         attachment_id: document.getElementById('attachment_id').value.trim(),
+        attachment_type: document.getElementById('attachment_type').value,
+        enable_like: document.getElementById('enable_like') ? document.getElementById('enable_like').checked : true,
+        enable_public_reply: document.getElementById('enable_public_reply') ? document.getElementById('enable_public_reply').checked : true,
+        enable_private_reply: document.getElementById('enable_private_reply') ? document.getElementById('enable_private_reply').checked : true,
         private_message: document.getElementById('private_message').value.trim(),
-        public_replies: document.getElementById('public_replies').value.split('\\n').map(s => s.trim()).filter(s => s.length > 0)
+        public_replies: document.getElementById('public_replies').value.split('\n').map(s => s.trim()).filter(s => s.length > 0)
       };
 
       const newPin = document.getElementById('admin_pin').value.trim();
@@ -740,8 +979,17 @@ function getAppHtml() {
       if (input.files && input.files[0]) {
         const file = input.files[0];
         selectedFileName = file.name;
+        selectedFileMime = file.type || '';
         document.getElementById('file-name-label').innerText = 'تم اختيار: ' + file.name;
         document.getElementById('btn-upload').disabled = false;
+
+        if (file.type.startsWith('image/')) {
+          selectAttachmentType('image');
+        } else if (file.type.startsWith('video/')) {
+          selectAttachmentType('video');
+        } else if (file.type.includes('pdf')) {
+          selectAttachmentType('file');
+        }
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -751,19 +999,23 @@ function getAppHtml() {
       }
     }
 
-    function uploadSelectedPdf() {
+    function uploadSelectedMedia() {
       if (!selectedFileBuffer) return;
       const btn = document.getElementById('btn-upload');
       btn.innerText = 'جاري الرفع إلى فيسبوك... ⏳';
       btn.disabled = true;
 
       const pin = localStorage.getItem('bot_pin') || '';
-      fetch('/api/upload-pdf', {
+      const currentAttachType = document.getElementById('attachment_type').value || 'file';
+
+      fetch('/api/upload-media', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pin: pin,
           fileName: selectedFileName,
+          fileType: currentAttachType,
+          mimeType: selectedFileMime,
           fileData: selectedFileBuffer
         })
       })
@@ -771,17 +1023,17 @@ function getAppHtml() {
       .then(data => {
         if (data.success && data.attachment_id) {
           document.getElementById('attachment_id').value = data.attachment_id;
-          showToast('تم رفع الملف بنجاح واستخراج المعرف! ✓');
+          showToast('تم رفع الوسائط بنجاح واستخراج المعرف! ✓');
           btn.innerText = 'تم الرفع بنجاح ✓';
           loadData();
         } else {
-          showToast(data.message || 'فشل في رفع الملف لفيسبوك', true);
+          showToast(data.message || 'فشل في رفع الوسائط لفيسبوك', true);
           btn.innerText = 'إعادة المحاولة 🚀';
           btn.disabled = false;
         }
       })
       .catch(() => {
-        showToast('تعذر رفع الملف', true);
+        showToast('تعذر رفع الوسائط', true);
         btn.innerText = 'إعادة المحاولة 🚀';
         btn.disabled = false;
       });
@@ -828,7 +1080,6 @@ const server = http.createServer(async (req, res) => {
     return pin === config.admin_pin;
   }
 
-  // API: Get Page's Recent Posts for 1-click Selection
   if (pathname === '/api/page-posts' && req.method === 'GET') {
     if (!isAuth(parsedUrl)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -889,12 +1140,15 @@ const server = http.createServer(async (req, res) => {
 
         if (data.page_id) config.page_id = data.page_id;
         if (data.access_token) config.access_token = data.access_token;
-        if (data.attachment_id) config.attachment_id = data.attachment_id;
-        if (data.private_message) config.private_message = data.private_message;
+        if (data.attachment_id !== undefined) config.attachment_id = data.attachment_id;
+        if (data.attachment_type) config.attachment_type = data.attachment_type;
+        if (data.enable_like !== undefined) config.enable_like = Boolean(data.enable_like);
+        if (data.enable_public_reply !== undefined) config.enable_public_reply = Boolean(data.enable_public_reply);
+        if (data.enable_private_reply !== undefined) config.enable_private_reply = Boolean(data.enable_private_reply);
+        if (data.private_message !== undefined) config.private_message = data.private_message;
         if (data.public_replies && Array.isArray(data.public_replies)) config.public_replies = data.public_replies;
         if (data.admin_pin) config.admin_pin = data.admin_pin;
 
-        // Smart Post ID Resolution
         let resolvedPostId = config.target_post_id;
         if (data.target_post_id) {
           resolvedPostId = await resolveFacebookPostId(data.target_post_id, config.page_id, config.access_token);
@@ -904,6 +1158,7 @@ const server = http.createServer(async (req, res) => {
         if (oldPostId !== config.target_post_id) {
           processedComments.clear();
           processingComments.clear();
+          try { fs.writeFileSync(PROCESSED_IDS_FILE, '[]', 'utf8'); } catch (e) {}
           console.log(`[CONFIG UPDATE] Target Post ID changed from "${oldPostId}" to: "${config.target_post_id}"`);
         }
 
@@ -923,7 +1178,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === '/api/upload-pdf' && req.method === 'POST') {
+  if ((pathname === '/api/upload-media' || pathname === '/api/upload-pdf') && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
@@ -936,17 +1191,20 @@ const server = http.createServer(async (req, res) => {
         }
 
         const fileBuffer = Buffer.from(data.fileData, 'base64');
-        const fileName = data.fileName || 'document.pdf';
+        const fileName = data.fileName || 'file';
+        const attachType = data.fileType || 'file';
+        const mimeType = data.mimeType || 'application/octet-stream';
 
-        console.log(`[UPLOAD] Uploading "${fileName}" (${fileBuffer.length} bytes) to Facebook Send API...`);
-        const fbRes = await uploadAttachmentToFacebook(fileBuffer, fileName, config.access_token);
+        console.log(`[UPLOAD] Uploading "${fileName}" (${attachType.toUpperCase()} - ${fileBuffer.length} bytes) to Facebook Send API...`);
+        const fbRes = await uploadAttachmentToFacebook(fileBuffer, fileName, attachType, mimeType, config.access_token);
 
         if (fbRes && fbRes.attachment_id) {
           config.attachment_id = fbRes.attachment_id;
+          config.attachment_type = attachType;
           saveConfig();
-          console.log(`[UPLOAD OK] New Attachment ID created: ${fbRes.attachment_id}`);
+          console.log(`[UPLOAD OK] New [${attachType.toUpperCase()}] Attachment ID created: ${fbRes.attachment_id}`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, attachment_id: fbRes.attachment_id }));
+          res.end(JSON.stringify({ success: true, attachment_id: fbRes.attachment_id, attachment_type: attachType }));
         } else {
           console.error(`[UPLOAD FB ERROR]`, fbRes);
           res.writeHead(400, { 'Content-Type': 'application/json' });
