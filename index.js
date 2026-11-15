@@ -19,7 +19,7 @@ const PUBLIC_COMMENT_REPLIES = [
   "مرحباً! تفضل بمراجعة رسائلك في ماسنجر، أرسلنا لك ملف الـ PDF المطلوب 🌟"
 ];
 
-// Tracking sets: Tracks individual comment IDs (every new comment gets a reply, even from the same user!)
+// Persistent tracker in memory: Tracks each comment ID so it is processed strictly ONCE
 const processedComments = new Set();
 const processingComments = new Set();
 
@@ -69,7 +69,7 @@ async function likeComment(commentId) {
   }
 }
 
-// 2. Publicly reply to a comment with a random varied message (Once per comment ID)
+// 2. Publicly reply to a comment with a random varied message (Strictly once per comment ID)
 async function replyPublicComment(commentId, recipientName) {
   try {
     const randomReply = PUBLIC_COMMENT_REPLIES[Math.floor(Math.random() * PUBLIC_COMMENT_REPLIES.length)];
@@ -90,9 +90,10 @@ async function replyPublicComment(commentId, recipientName) {
   }
 }
 
-// 3. Send Private Message & PDF after randomized natural delay (10s to 30s)
+// 3. Send Private Message & PDF after short natural delay (Strictly once per comment ID)
 async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey) {
-  const delayMs = getRandomInt(10000, 30000);
+  // Short natural delay: 10 to 25 seconds
+  const delayMs = getRandomInt(10000, 25000);
   const delaySec = Math.round(delayMs / 1000);
   console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message & PDF to ${recipientName}...`);
 
@@ -150,7 +151,7 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
   }
 }
 
-// Core processing: Every new comment ID gets processed (regardless of whether the user commented before)
+// Core processing: Process each comment ID strictly once
 async function processNewComment(comment) {
   const cId = comment.id;
   const senderId = comment.from ? comment.from.id : null;
@@ -161,22 +162,22 @@ async function processNewComment(comment) {
     return;
   }
 
-  // 2. Skip nested replies / sub-comments (has parent comment)
+  // 2. Skip nested replies (sub-comments)
   if (comment.parent && comment.parent.id) {
     return;
   }
 
-  // 3. Skip ONLY if THIS SPECIFIC COMMENT was already processed
+  // 3. Skip if this comment ID was already processed or is currently being processed
   if (processedComments.has(cId) || processingComments.has(cId)) {
     return;
   }
 
-  // Mark this specific comment ID so this comment isn't duplicated
+  // Lock this comment ID immediately so it can NEVER be triggered twice!
   processedComments.add(cId);
   processingComments.add(cId);
 
   console.log(`\n==================================================`);
-  console.log(`[NEW COMMENT DETECTED] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message}"`);
+  console.log(`[NEW COMMENT ON POST] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message}"`);
 
   // Step 1: Like this comment
   await likeComment(cId);
@@ -184,43 +185,21 @@ async function processNewComment(comment) {
   // Step 2: Random public reply on this comment
   await replyPublicComment(cId, senderName);
 
-  // Step 3: Send private message & PDF (Every time this user comments, they get the file!)
+  // Step 3: Send private message & PDF (once for this comment)
   sendPrivateMessageWithDelay(senderId, senderName, cId);
 }
 
-// Core loop: Check comments and conversations
+// Core loop: Check ONLY comments on the target post
 async function checkAndRespond() {
   try {
-    // 1. Check top-level comments on target post
-    if (TARGET_POST_ID) {
-      const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent,comments{from,id}&limit=50&access_token=${ACCESS_TOKEN}`;
-      const commentsData = await makeRequest(commentsUrl);
-      
-      if (commentsData && commentsData.data) {
-        for (const comment of commentsData.data) {
-          await processNewComment(comment);
-        }
-      }
-    }
+    if (!TARGET_POST_ID) return;
 
-    // 2. Check active Messenger conversations
-    const convUrl = `https://graph.facebook.com/v19.0/${PAGE_ID}/conversations?fields=id,updated_time,participants,messages.limit(1){message,created_time,from}&access_token=${ACCESS_TOKEN}`;
-    const convData = await makeRequest(convUrl);
-
-    if (convData && convData.data) {
-      for (const conv of convData.data) {
-        const lastMsg = conv.messages && conv.messages.data ? conv.messages.data[0] : null;
-        if (lastMsg && lastMsg.from && lastMsg.from.id !== PAGE_ID) {
-          const senderId = lastMsg.from.id;
-          const senderName = lastMsg.from.name;
-          const msgId = lastMsg.id;
-
-          if (!processedComments.has(msgId) && !processingComments.has(msgId)) {
-            processedComments.add(msgId);
-            processingComments.add(msgId);
-            sendPrivateMessageWithDelay(senderId, senderName, msgId);
-          }
-        }
+    const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent&limit=50&access_token=${ACCESS_TOKEN}`;
+    const commentsData = await makeRequest(commentsUrl);
+    
+    if (commentsData && commentsData.data) {
+      for (const comment of commentsData.data) {
+        await processNewComment(comment);
       }
     }
   } catch (err) {
@@ -231,7 +210,7 @@ async function checkAndRespond() {
 // Simple HTTP server for Render Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Per-Comment Dispatch)!\n');
+  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Single Reply Per Comment)!\n');
 });
 
 // Prevent process from crashing on unexpected network errors
