@@ -11,17 +11,11 @@ const PRIVATE_MESSAGE = process.env.REPLY_MESSAGE || "مرحباً بك! شكر�
 // Random Public Comment Replies List
 const PUBLIC_COMMENT_REPLIES = [
   "أهلاً بك! تفقد صندوق الرسائل لديك، تم إرسال الملف لك بنجاح 📩",
-  "مرحباً بك أخي الكريم! لقد أرسلت لك ملف الـ PDF في الخاص، بالتوفيق لك ✨",
-  "تم الرد وإرسال الملف إلى بريدك في الخاص، شكراً لتفاعلك معنا 📄",
-  "شكراً لاهتمامك وتفاعلك! تم إرسال ملف الـ PDF المطلوب في رسائل صفحتك 📥",
-  "أهلاً وسهلاً بك! راجع رسائلك على ماسنجر، الملف جاهز لديك الآن 👍",
-  "تم إرسال الملف المطلوب في الخاص، نتمنى لك الاستفادة الكاملة منه 🚀",
-  "مرحباً! تفضل بمراجعة رسائلك في ماسنجر، أرسلنا لك ملف الـ PDF المطلوب 🌟"
 ];
 
-// Persistent tracker in memory: Tracks each comment ID strictly ONCE
-const processedComments = new Set();
+// In-flight locking
 const processingComments = new Set();
+const processedComments = new Set();
 
 // Helper: HTTP request wrapper returning Promise
 function makeRequest(url, options = {}, postData = null) {
@@ -69,8 +63,8 @@ async function likeComment(commentId) {
   }
 }
 
-// 2. Publicly reply to a comment with a random varied message (Strictly once per comment ID)
-async function replyPublicComment(commentId, recipientName) {
+// 2. Publicly reply to a comment with a random varied message
+async function replyPublicComment(commentId) {
   try {
     const randomReply = PUBLIC_COMMENT_REPLIES[Math.floor(Math.random() * PUBLIC_COMMENT_REPLIES.length)];
     const url = `https://graph.facebook.com/v19.0/${commentId}/comments?access_token=${ACCESS_TOKEN}`;
@@ -90,9 +84,9 @@ async function replyPublicComment(commentId, recipientName) {
   }
 }
 
-// 3. Send Private Message & PDF after short natural delay (Strictly once per comment ID)
-async function sendPrivateMessageWithDelay(commentId, senderId, senderName) {
-  const delayMs = getRandomInt(10000, 25000);
+// 3. Send Private Message & PDF after short natural delay
+async function sendPrivateMessageWithDelay(commentId, senderId) {
+  const delayMs = getRandomInt(10000, 20000);
   const delaySec = Math.round(delayMs / 1000);
   console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message & PDF for comment ${commentId}...`);
 
@@ -154,50 +148,65 @@ async function sendPrivateMessageWithDelay(commentId, senderId, senderName) {
   }
 }
 
-// Core processing: Process each comment ID strictly once
+// Core processing: Process each comment strictly once
 async function processNewComment(comment) {
   const cId = comment.id;
   const senderId = comment.from ? comment.from.id : null;
   const senderName = comment.from ? comment.from.name : 'متابع';
 
-  // 1. Skip comments from the Page itself
+  // 1. Skip comments made by the Page itself
   if (senderId && senderId === PAGE_ID) {
     return;
   }
 
-  // 2. Skip nested replies (sub-comments)
+  // 2. Skip nested replies (sub-comments / replies to comments)
   if (comment.parent && comment.parent.id) {
     return;
   }
 
-  // 3. Skip if this comment ID was already processed or is currently being processed
+  // 3. ROCK-SOLID CHECK ON FACEBOOK: Does this comment ALREADY have a reply from our Page?
+  if (comment.comments && comment.comments.data && Array.isArray(comment.comments.data)) {
+    const alreadyRepliedByPage = comment.comments.data.some(sub => sub.from && sub.from.id === PAGE_ID);
+    if (alreadyRepliedByPage) {
+      // The page has ALREADY replied to this comment on Facebook! Never touch it again!
+      processedComments.add(cId);
+      return;
+    }
+  }
+
+  // 4. Memory lock: Skip if already processed or in-flight right now
   if (processedComments.has(cId) || processingComments.has(cId)) {
     return;
   }
 
-  // Lock this comment ID immediately so it can NEVER be triggered twice!
-  processedComments.add(cId);
+  // Lock this comment immediately
   processingComments.add(cId);
+  processedComments.add(cId);
 
   console.log(`\n==================================================`);
-  console.log(`[NEW COMMENT ON POST] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message || ''}"`);
+  console.log(`[NEW UNREPLIED COMMENT] ID: ${cId} | From: ${senderName} | Text: "${comment.message || ''}"`);
 
   // Step 1: Like this comment
   await likeComment(cId);
 
   // Step 2: Random public reply on this comment
-  await replyPublicComment(cId, senderName);
+  await replyPublicComment(cId);
 
-  // Step 3: Send private message & PDF (once for this comment)
-  sendPrivateMessageWithDelay(cId, senderId, senderName);
+  // Step 3: Send private message & PDF (strictly once for this comment)
+  await sendPrivateMessageWithDelay(cId, senderId);
 }
 
 // Core loop: Check ONLY comments on the target post
+let isChecking = false;
 async function checkAndRespond() {
+  if (isChecking) return;
+  isChecking = true;
+
   try {
     if (!TARGET_POST_ID) return;
 
-    const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent&limit=50&access_token=${ACCESS_TOKEN}`;
+    // Fetch top-level comments along with their replies and author IDs
+    const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent,comments{id,from}&limit=50&access_token=${ACCESS_TOKEN}`;
     const commentsData = await makeRequest(commentsUrl);
     
     if (commentsData && commentsData.data) {
@@ -207,13 +216,15 @@ async function checkAndRespond() {
     }
   } catch (err) {
     console.error(`[CRON ERROR]`, err.message);
+  } finally {
+    isChecking = false;
   }
 }
 
 // Simple HTTP server for Render Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Single Reply Per Comment)!\n');
+  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Strict Single Reply Per Comment)!\n');
 });
 
 process.on('uncaughtException', (err) => {
