@@ -9,7 +9,7 @@ const PROCESSED_IDS_FILE = path.join(__dirname, 'processed_ids.json');
 
 // Default initial config
 let config = {
-  admin_pin: process.env.ADMIN_PIN || "12345",
+  admin_pin: process.env.ADMIN_PIN || "1234",
   page_id: process.env.PAGE_ID || "1424795157375101",
   target_post_id: process.env.TARGET_POST_ID || "1424795157375101_122093934621520437",
   access_token: process.env.ACCESS_TOKEN || "EAAuuUwQY1zIBSzNNc26whvNxX61CvFdkhhKqbH0Fei8kUZAoFxusKEW0akCUS3iJqypk5YhlZByirvRI6ADKMnAK7D6QOwehHAFXsAHDWtpE4dwpv2YqEf6QZC13CYZCFyMiuTlZBnasbbrUItZBVzD6GcZAUK6buZAwZC0RBkBnKabePcTyXDPXf5piKZCzBYZAKFqETSv57YQIXZCtZCJ2Al5qxGDl4",
@@ -455,13 +455,19 @@ function getAppHtml() {
     .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer; border: none; background: transparent; padding: 6px 12px; border-radius: 12px; transition: 0.2s; }
     .nav-item.active { color: #3b82f6; }
     .nav-item svg { width: 22px; height: 22px; fill: currentColor; }
+    .nav-item * { pointer-events: none; }
+
+    .top-nav-pills { display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px; background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 60px; z-index: 35; scrollbar-width: none; }
+    .top-nav-pills::-webkit-scrollbar { display: none; }
+    .pill-btn { white-space: nowrap; padding: 8px 14px; border-radius: 20px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; flex-shrink: 0; }
+    .pill-btn.active { background: #2563eb; color: white; border-color: #3b82f6; box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4); }
 
     .page-tab { display: none; }
     .page-tab.active { display: block; animation: fadeIn 0.2s ease-in; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-    #login-overlay { position: fixed; inset: 0; background: #0b1120; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .login-card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 28px 24px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    #login-overlay { position: fixed; inset: 0; background: #0b1120; z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .login-card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 28px 20px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
     .login-icon { width: 64px; height: 64px; background: rgba(59, 130, 246, 0.15); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: #3b82f6; font-size: 2rem; }
   </style>
 </head>
@@ -469,10 +475,40 @@ function getAppHtml() {
 
   <div id="toast" class="toast">تم الحفظ بنجاح! ✓</div>
 
+  <!-- SECURITY PIN LOCK OVERLAY -->
+  <div id="login-overlay">
+    <div class="login-card">
+      <div class="login-icon">🔐</div>
+      <h2 style="font-size: 1.3rem; margin-bottom: 6px; color: #f8fafc;">قفل أمان لوحة التحكم</h2>
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px;">الرمز الافتراضي: <strong style="color: #60a5fa; font-size: 1.15rem; letter-spacing: 2px;">1234</strong></p>
+      
+      <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="form-input" placeholder="رمز PIN" value="1234" style="text-align: center; font-size: 1.3rem; letter-spacing: 6px; font-weight: 800; padding: 12px; margin-bottom: 12px;" onkeydown="if(event.key==='Enter') verifyPin()">
+
+      <button class="btn btn-primary" onclick="verifyPin()" style="margin-bottom: 10px;">
+        دخول اللوحة 🚀
+      </button>
+
+      <button class="btn btn-secondary btn-sm" style="width: 100%; padding: 10px;" onclick="enterWithDefaultPin()">
+        ⚡ نقرة واحدة: دخول بالرمز الافتراضي (1234)
+      </button>
+
+      <p id="pin-error" style="color: #ef4444; font-size: 0.82rem; margin-top: 12px; display: none; line-height: 1.4;"></p>
+    </div>
+  </div>
+
   <header class="top-header">
     <h1><span>🤖</span> بوت تك أنفو</h1>
     <div class="status-badge"><div class="status-dot"></div> يعمل 24/7</div>
   </header>
+
+  <!-- TOP NAVIGATION PILLS (SWITCH PAGES EASILY FROM TOP) -->
+  <div class="top-nav-pills">
+    <button class="pill-btn active" id="pill-dash" onclick="switchTab('dash')">🏠 الرئيسية</button>
+    <button class="pill-btn" id="pill-post" onclick="switchTab('post')">📌 المنشور</button>
+    <button class="pill-btn" id="pill-file" onclick="switchTab('file')">📎 المرفق</button>
+    <button class="pill-btn" id="pill-msg" onclick="switchTab('msg')">💬 الرسائل</button>
+    <button class="pill-btn" id="pill-settings" onclick="switchTab('settings')">⚙️ الإعدادات</button>
+  </div>
 
   <main class="container">
 
@@ -683,35 +719,41 @@ function getAppHtml() {
           <input type="text" id="access_token" class="form-input">
         </div>
         <div class="form-group">
-          <label class="form-label">تغيير رمز الـ PIN للدخول:</label>
-          <input type="password" id="admin_pin" class="form-input" placeholder="PIN الجديد">
+          <label class="form-label">تغيير رمز قفل الـ PIN:</label>
+          <input type="text" id="admin_pin" class="form-input" placeholder="اكتب رمز PIN جديد (الافتراضي 1234)">
         </div>
         <button class="btn btn-primary" onclick="saveConfiguration()">حفظ الإعدادات 💾</button>
+
+        <div style="margin-top: 14px; border-top: 1px solid #334155; padding-top: 14px;">
+          <button class="btn btn-secondary" style="background: #334155;" onclick="lockApp()">
+            🔒 قفل اللوحة الآن (تسجيل الخروج)
+          </button>
+        </div>
       </div>
     </div>
 
   </main>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" onclick="switchTab('dash', this)">
+    <button class="nav-item active" id="nav-btn-dash" onclick="switchTab('dash')">
       <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-      الرئيسية
+      <span>الرئيسية</span>
     </button>
-    <button class="nav-item" onclick="switchTab('post', this)">
+    <button class="nav-item" id="nav-btn-post" onclick="switchTab('post')">
       <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z"/></svg>
-      المنشور
+      <span>المنشور</span>
     </button>
-    <button class="nav-item" onclick="switchTab('file', this)">
+    <button class="nav-item" id="nav-btn-file" onclick="switchTab('file')">
       <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-      المرفق
+      <span>المرفق</span>
     </button>
-    <button class="nav-item" onclick="switchTab('msg', this)">
+    <button class="nav-item" id="nav-btn-msg" onclick="switchTab('msg')">
       <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
-      الرسائل
+      <span>الرسائل</span>
     </button>
-    <button class="nav-item" onclick="switchTab('settings', this)">
+    <button class="nav-item" id="nav-btn-settings" onclick="switchTab('settings')">
       <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-      الإعدادات
+      <span>الإعدادات</span>
     </button>
   </nav>
 
@@ -720,9 +762,78 @@ function getAppHtml() {
     let selectedFileName = '';
     let selectedFileMime = '';
 
+    function normalizePin(str) {
+      if (!str) return '';
+      const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+      return String(str)
+        .trim()
+        .replace(/[٠-٩]/g, w => arabicDigits.indexOf(w))
+        .replace(/\s+/g, '');
+    }
+
     window.onload = function() {
-      loadData();
+      const isAuth = localStorage.getItem('bot_authenticated');
+      const savedPin = localStorage.getItem('bot_pin') || '1234';
+      document.getElementById('pin-input').value = savedPin;
+
+      if (isAuth === 'true') {
+        document.getElementById('login-overlay').style.display = 'none';
+        loadData();
+      } else {
+        document.getElementById('login-overlay').style.display = 'flex';
+      }
     };
+
+    function enterWithDefaultPin() {
+      document.getElementById('pin-input').value = '1234';
+      verifyPin();
+    }
+
+    function verifyPin() {
+      const pinRaw = document.getElementById('pin-input').value;
+      const pin = normalizePin(pinRaw) || '1234';
+      const errEl = document.getElementById('pin-error');
+      if (errEl) errEl.style.display = 'none';
+
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          localStorage.setItem('bot_pin', pin);
+          localStorage.setItem('bot_authenticated', 'true');
+          document.getElementById('login-overlay').style.display = 'none';
+          loadData();
+          showToast('مرحباً بك! تم إلغاء القفل بنجاح ✓');
+        } else {
+          if (errEl) {
+            errEl.innerText = 'رمز الـ PIN غير صحيح! تأكد من إدخال 1234 أو اضغط على زر الدخول بالرمز الافتراضي.';
+            errEl.style.display = 'block';
+          }
+        }
+      })
+      .catch(() => {
+        if (pin === '1234' || (localStorage.getItem('bot_pin') && pin === localStorage.getItem('bot_pin'))) {
+          localStorage.setItem('bot_pin', pin);
+          localStorage.setItem('bot_authenticated', 'true');
+          document.getElementById('login-overlay').style.display = 'none';
+          loadData();
+          showToast('مرحباً بك! ✓');
+        } else if (errEl) {
+          errEl.innerText = 'جاري إيقاظ السيرفر... يرجى الضغط مرة أخرى بعد 10 ثوانٍ.';
+          errEl.style.display = 'block';
+        }
+      });
+    }
+
+    function lockApp() {
+      localStorage.removeItem('bot_authenticated');
+      document.getElementById('login-overlay').style.display = 'flex';
+      showToast('تم قفل اللوحة 🔒');
+    }
 
     function showToast(msg, isError = false) {
       const t = document.getElementById('toast');
@@ -731,11 +842,23 @@ function getAppHtml() {
       setTimeout(() => { t.className = 'toast'; }, 3000);
     }
 
-    function switchTab(tabId, el) {
+    function switchTab(tabId) {
       document.querySelectorAll('.page-tab').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      document.getElementById('tab-' + tabId).classList.add('active');
-      el.classList.add('active');
+      document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+
+      const target = document.getElementById('tab-' + tabId);
+      if (target) {
+        target.classList.add('active');
+      }
+
+      const bottomBtn = document.getElementById('nav-btn-' + tabId);
+      if (bottomBtn) bottomBtn.classList.add('active');
+
+      const topPill = document.getElementById('pill-' + tabId);
+      if (topPill) topPill.classList.add('active');
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function selectAttachmentType(type) {
@@ -1006,6 +1129,16 @@ function getAppHtml() {
 </html>`;
 }
 
+// Normalize Arabic / Latin digits and spaces
+function normalizePin(str) {
+  if (!str) return '';
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(str)
+    .trim()
+    .replace(/[٠-٩]/g, w => arabicDigits.indexOf(w))
+    .replace(/\s+/g, '');
+}
+
 // HTTP Server
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
@@ -1023,9 +1156,9 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        const pin = String(data.pin || '').trim();
-        const expectedPin = String(config.admin_pin || '1234').trim();
-        if (pin === expectedPin || pin === '1234') {
+        const pin = normalizePin(data.pin);
+        const expectedPin = normalizePin(config.admin_pin || '1234');
+        if (pin === expectedPin || pin === '1234' || !config.admin_pin) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
         } else {
@@ -1041,7 +1174,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   function isAuth(reqUrl, bodyObj = null) {
-    return true;
+    const pin = normalizePin(bodyObj ? bodyObj.pin : reqUrl.searchParams.get('pin'));
+    const expectedPin = normalizePin(config.admin_pin || '1234');
+    return pin === expectedPin || pin === '1234' || !config.admin_pin;
   }
 
   if (pathname === '/api/page-posts' && req.method === 'GET') {
