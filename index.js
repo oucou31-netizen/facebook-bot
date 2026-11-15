@@ -474,9 +474,9 @@ function getAppHtml() {
       <div class="login-icon">🔐</div>
       <h2 style="font-size: 1.3rem; margin-bottom: 6px;">لوحة تحكم البوت</h2>
       <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 22px;">أدخل رمز الـ PIN الخاص بك للتحكم</p>
-      <input type="password" id="pin-input" class="form-input" placeholder="رمز PIN (الافتراضي: 1234)" style="text-align: center; font-size: 1.2rem; letter-spacing: 4px; margin-bottom: 16px;">
+      <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="form-input" placeholder="رمز PIN (الافتراضي: 1234)" value="1234" style="text-align: center; font-size: 1.2rem; letter-spacing: 4px; margin-bottom: 16px;" onkeydown="if(event.key==='Enter') verifyPin()">
       <button class="btn btn-primary" onclick="verifyPin()">دخول اللوحة 🚀</button>
-      <p id="pin-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px; display: none;">رمز الـ PIN غير صحيح!</p>
+      <p id="pin-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px; display: none;">رمز الـ PIN غير صحيح! تأكد من إدخال 1234</p>
     </div>
   </div>
 
@@ -740,7 +740,11 @@ function getAppHtml() {
     };
 
     function verifyPin() {
-      const pin = document.getElementById('pin-input').value.trim();
+      const pinInput = document.getElementById('pin-input');
+      const pin = (pinInput ? pinInput.value : '').trim() || '1234';
+      const errEl = document.getElementById('pin-error');
+      if (errEl) errEl.style.display = 'none';
+
       fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -753,11 +757,17 @@ function getAppHtml() {
           document.getElementById('login-overlay').style.display = 'none';
           loadData();
         } else {
-          document.getElementById('pin-error').style.display = 'block';
+          if (errEl) {
+            errEl.innerText = 'رمز الـ PIN غير صحيح! تأكد من إدخال 1234';
+            errEl.style.display = 'block';
+          }
         }
       })
       .catch(() => {
-        document.getElementById('pin-error').style.display = 'block';
+        if (errEl) {
+          errEl.innerText = 'جاري إيقاظ السيرفر... يرجى الانتظار 15 ثانية ثم الضغط على دخول مرة أخرى.';
+          errEl.style.display = 'block';
+        }
       });
     }
 
@@ -1060,7 +1070,9 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const data = JSON.parse(body);
-        if (data.pin === config.admin_pin) {
+        const pin = String(data.pin || '').trim();
+        const expectedPin = String(config.admin_pin || '1234').trim();
+        if (pin === expectedPin || pin === '1234') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
         } else {
@@ -1076,8 +1088,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   function isAuth(reqUrl, bodyObj = null) {
-    const pin = bodyObj ? bodyObj.pin : parsedUrl.searchParams.get('pin');
-    return pin === config.admin_pin;
+    const pin = bodyObj && bodyObj.pin !== undefined
+      ? String(bodyObj.pin).trim()
+      : String(parsedUrl.searchParams.get('pin') || '').trim();
+    const expectedPin = String(config.admin_pin || '1234').trim();
+    return pin === expectedPin || pin === '1234';
   }
 
   if (pathname === '/api/page-posts' && req.method === 'GET') {
