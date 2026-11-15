@@ -19,9 +19,9 @@ const PUBLIC_COMMENT_REPLIES = [
   "مرحباً! تفضل بمراجعة رسائلك في ماسنجر، أرسلنا لك ملف الـ PDF المطلوب 🌟"
 ];
 
-// Tracking sets to prevent duplicate actions
-const repliedSet = new Set();
-const processingSet = new Set();
+// Tracking sets: Tracks individual comment IDs (every new comment gets a reply, even from the same user!)
+const processedComments = new Set();
+const processingComments = new Set();
 
 // Helper: HTTP request wrapper returning Promise
 function makeRequest(url, options = {}, postData = null) {
@@ -69,7 +69,7 @@ async function likeComment(commentId) {
   }
 }
 
-// 2. Publicly reply to a comment with a random varied message (ONLY ONCE)
+// 2. Publicly reply to a comment with a random varied message (Once per comment ID)
 async function replyPublicComment(commentId, recipientName) {
   try {
     const randomReply = PUBLIC_COMMENT_REPLIES[Math.floor(Math.random() * PUBLIC_COMMENT_REPLIES.length)];
@@ -90,15 +90,15 @@ async function replyPublicComment(commentId, recipientName) {
   }
 }
 
-// 3. Send Private Message & PDF after randomized delay (15s to 150s)
+// 3. Send Private Message & PDF after randomized natural delay (10s to 30s)
 async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey) {
-  const delayMs = getRandomInt(15000, 150000);
+  const delayMs = getRandomInt(10000, 30000);
   const delaySec = Math.round(delayMs / 1000);
-  console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message to ${recipientName}...`);
+  console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message & PDF to ${recipientName}...`);
 
   await sleep(delayMs);
 
-  console.log(`[${new Date().toISOString()}] Sending private message to ${recipientName} (${recipientId})...`);
+  console.log(`[${new Date().toISOString()}] Sending private message & PDF to ${recipientName} (${recipientId})...`);
 
   try {
     // A. Send Text message
@@ -114,42 +114,43 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
     }, textPayload);
 
     if (textRes && textRes.message_id) {
-      console.log(`[OK] Private text message delivered to ${recipientName}`);
-
-      // B. Send PDF Attachment
-      if (ATTACHMENT_ID) {
-        const filePayload = {
-          recipient: { id: recipientId },
-          message: {
-            attachment: {
-              type: 'file',
-              payload: { attachment_id: ATTACHMENT_ID }
-            }
-          }
-        };
-
-        const fileRes = await makeRequest(textUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        }, filePayload);
-
-        if (fileRes && fileRes.message_id) {
-          console.log(`[OK] PDF attachment delivered to ${recipientName}`);
-        }
-      }
+      console.log(`[OK] Private text message delivered to ${recipientName} (ID: ${textRes.message_id})`);
     } else {
-      console.warn(`[WARN] Facebook private message response:`, textRes);
+      console.warn(`[WARN] Private message response:`, textRes);
+    }
+
+    // B. Send PDF Attachment
+    if (ATTACHMENT_ID) {
+      const filePayload = {
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: 'file',
+            payload: { attachment_id: ATTACHMENT_ID }
+          }
+        }
+      };
+
+      const fileRes = await makeRequest(textUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, filePayload);
+
+      if (fileRes && fileRes.message_id) {
+        console.log(`[OK] PDF attachment delivered to ${recipientName} (ID: ${fileRes.message_id})`);
+      } else {
+        console.warn(`[WARN] PDF attachment response:`, fileRes);
+      }
     }
   } catch (err) {
     console.error(`[ERROR] Failed to send private message to ${recipientName}:`, err.message);
   } finally {
-    // Always keep in repliedSet and remove from processingSet
-    repliedSet.add(uniqueKey);
-    processingSet.delete(uniqueKey);
+    processingComments.delete(uniqueKey);
+    processedComments.add(uniqueKey);
   }
 }
 
-// Core processing for a comment (ONLY TOP-LEVEL & NEVER NESTED REPLIES)
+// Core processing: Every new comment ID gets processed (regardless of whether the user commented before)
 async function processNewComment(comment) {
   const cId = comment.id;
   const senderId = comment.from ? comment.from.id : null;
@@ -160,54 +161,39 @@ async function processNewComment(comment) {
     return;
   }
 
-  // 2. Skip if it is a nested reply / sub-comment (has parent comment)
+  // 2. Skip nested replies / sub-comments (has parent comment)
   if (comment.parent && comment.parent.id) {
     return;
   }
 
-  // 3. Skip if Page already liked this comment
-  if (comment.user_likes) {
-    repliedSet.add(cId);
+  // 3. Skip ONLY if THIS SPECIFIC COMMENT was already processed
+  if (processedComments.has(cId) || processingComments.has(cId)) {
     return;
   }
 
-  // 4. Skip if the comment already contains a sub-comment reply from our Page
-  if (comment.comments && comment.comments.data) {
-    const hasPageReply = comment.comments.data.some(sub => sub.from && sub.from.id === PAGE_ID);
-    if (hasPageReply) {
-      repliedSet.add(cId);
-      return;
-    }
-  }
-
-  // 5. Skip if already processed or currently processing in memory
-  if (repliedSet.has(cId) || processingSet.has(cId)) {
-    return;
-  }
-
-  // Mark immediately as processed
-  repliedSet.add(cId);
-  processingSet.add(cId);
+  // Mark this specific comment ID so this comment isn't duplicated
+  processedComments.add(cId);
+  processingComments.add(cId);
 
   console.log(`\n==================================================`);
-  console.log(`[TOP-LEVEL COMMENT DETECTED] From: ${senderName} | Text: "${comment.message}"`);
+  console.log(`[NEW COMMENT DETECTED] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message}"`);
 
-  // Step 1: Like the comment (Once)
+  // Step 1: Like this comment
   await likeComment(cId);
 
-  // Step 2: Random public reply on the comment (Once)
+  // Step 2: Random public reply on this comment
   await replyPublicComment(cId, senderName);
 
-  // Step 3: Send private message & PDF after randomized delay (15s to 2.5m)
+  // Step 3: Send private message & PDF (Every time this user comments, they get the file!)
   sendPrivateMessageWithDelay(senderId, senderName, cId);
 }
 
 // Core loop: Check comments and conversations
 async function checkAndRespond() {
   try {
-    // 1. Check ONLY top-level comments on target post (filter=toplevel)
+    // 1. Check top-level comments on target post
     if (TARGET_POST_ID) {
-      const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent,user_likes,comments{from,id}&limit=50&access_token=${ACCESS_TOKEN}`;
+      const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent,comments{from,id}&limit=50&access_token=${ACCESS_TOKEN}`;
       const commentsData = await makeRequest(commentsUrl);
       
       if (commentsData && commentsData.data) {
@@ -229,9 +215,9 @@ async function checkAndRespond() {
           const senderName = lastMsg.from.name;
           const msgId = lastMsg.id;
 
-          if (!repliedSet.has(msgId) && !processingSet.has(msgId)) {
-            repliedSet.add(msgId);
-            processingSet.add(msgId);
+          if (!processedComments.has(msgId) && !processingComments.has(msgId)) {
+            processedComments.add(msgId);
+            processingComments.add(msgId);
             sendPrivateMessageWithDelay(senderId, senderName, msgId);
           }
         }
@@ -245,7 +231,7 @@ async function checkAndRespond() {
 // Simple HTTP server for Render Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Top-Level comments only)!\n');
+  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Per-Comment Dispatch)!\n');
 });
 
 // Prevent process from crashing on unexpected network errors
@@ -261,6 +247,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running and listening on 0.0.0.0:${PORT}`);
   // Run immediately on startup
   checkAndRespond();
-  // Run every 30 seconds continuously
-  setInterval(checkAndRespond, 30 * 1000);
+  // Run every 20 seconds continuously
+  setInterval(checkAndRespond, 20 * 1000);
 });
