@@ -463,7 +463,6 @@ function getAppHtml() {
     .pill-btn.active { background: #2563eb; color: white; border-color: #3b82f6; box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4); }
 
     .page-tab { display: none; }
-    .page-tab.active { display: block; animation: fadeIn 0.2s ease-in; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
     #login-overlay { position: fixed; inset: 0; background: #0b1120; z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -513,7 +512,7 @@ function getAppHtml() {
   <main class="container">
 
     <!-- TAB 1: DASHBOARD -->
-    <div id="tab-dash" class="page-tab active">
+    <div id="tab-dash" class="page-tab" style="display:block;">
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">إجمالي الردود المُرسلة</div>
@@ -776,6 +775,13 @@ function getAppHtml() {
       const savedPin = localStorage.getItem('bot_pin') || '1234';
       document.getElementById('pin-input').value = savedPin;
 
+      // Make sure only tab-dash is visible at start
+      var tabs = ['post', 'file', 'msg', 'settings'];
+      tabs.forEach(function(id) {
+        var el = document.getElementById('tab-' + id);
+        if (el) el.style.display = 'none';
+      });
+
       if (isAuth === 'true') {
         document.getElementById('login-overlay').style.display = 'none';
         loadData();
@@ -843,20 +849,27 @@ function getAppHtml() {
     }
 
     function switchTab(tabId) {
-      document.querySelectorAll('.page-tab').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      // Hide all tabs using inline style (100% reliable, no CSS specificity issues)
+      var tabs = ['dash', 'post', 'file', 'msg', 'settings'];
+      tabs.forEach(function(id) {
+        var el = document.getElementById('tab-' + id);
+        if (el) el.style.display = 'none';
+        var nb = document.getElementById('nav-btn-' + id);
+        if (nb) nb.classList.remove('active');
+        var pill = document.getElementById('pill-' + id);
+        if (pill) pill.classList.remove('active');
+      });
 
-      const target = document.getElementById('tab-' + tabId);
+      // Show selected tab
+      var target = document.getElementById('tab-' + tabId);
       if (target) {
-        target.classList.add('active');
+        target.style.display = 'block';
+        target.style.animation = 'fadeIn 0.2s ease-in';
       }
-
-      const bottomBtn = document.getElementById('nav-btn-' + tabId);
-      if (bottomBtn) bottomBtn.classList.add('active');
-
-      const topPill = document.getElementById('pill-' + tabId);
-      if (topPill) topPill.classList.add('active');
+      var nb = document.getElementById('nav-btn-' + tabId);
+      if (nb) nb.classList.add('active');
+      var pill = document.getElementById('pill-' + tabId);
+      if (pill) pill.classList.add('active');
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
