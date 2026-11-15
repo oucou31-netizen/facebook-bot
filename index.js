@@ -9,7 +9,7 @@ const PROCESSED_IDS_FILE = path.join(__dirname, 'processed_ids.json');
 
 // Default initial config
 let config = {
-  admin_pin: process.env.ADMIN_PIN || "1234",
+  admin_pin: process.env.ADMIN_PIN || "12345",
   page_id: process.env.PAGE_ID || "1424795157375101",
   target_post_id: process.env.TARGET_POST_ID || "1424795157375101_122093934621520437",
   access_token: process.env.ACCESS_TOKEN || "EAAuuUwQY1zIBSzNNc26whvNxX61CvFdkhhKqbH0Fei8kUZAoFxusKEW0akCUS3iJqypk5YhlZByirvRI6ADKMnAK7D6QOwehHAFXsAHDWtpE4dwpv2YqEf6QZC13CYZCFyMiuTlZBnasbbrUItZBVzD6GcZAUK6buZAwZC0RBkBnKabePcTyXDPXf5piKZCzBYZAKFqETSv57YQIXZCtZCJ2Al5qxGDl4",
@@ -469,17 +469,6 @@ function getAppHtml() {
 
   <div id="toast" class="toast">تم الحفظ بنجاح! ✓</div>
 
-  <div id="login-overlay">
-    <div class="login-card">
-      <div class="login-icon">🔐</div>
-      <h2 style="font-size: 1.3rem; margin-bottom: 6px;">لوحة تحكم البوت</h2>
-      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 22px;">أدخل رمز الـ PIN الخاص بك للتحكم</p>
-      <input type="text" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="form-input" placeholder="رمز PIN (الافتراضي: 1234)" value="1234" style="text-align: center; font-size: 1.2rem; letter-spacing: 4px; margin-bottom: 16px;" onkeydown="if(event.key==='Enter') verifyPin()">
-      <button class="btn btn-primary" onclick="verifyPin()">دخول اللوحة 🚀</button>
-      <p id="pin-error" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px; display: none;">رمز الـ PIN غير صحيح! تأكد من إدخال 1234</p>
-    </div>
-  </div>
-
   <header class="top-header">
     <h1><span>🤖</span> بوت تك أنفو</h1>
     <div class="status-badge"><div class="status-dot"></div> يعمل 24/7</div>
@@ -732,44 +721,8 @@ function getAppHtml() {
     let selectedFileMime = '';
 
     window.onload = function() {
-      const savedPin = localStorage.getItem('bot_pin');
-      if (savedPin) {
-        document.getElementById('pin-input').value = savedPin;
-        verifyPin();
-      }
+      loadData();
     };
-
-    function verifyPin() {
-      const pinInput = document.getElementById('pin-input');
-      const pin = (pinInput ? pinInput.value : '').trim() || '1234';
-      const errEl = document.getElementById('pin-error');
-      if (errEl) errEl.style.display = 'none';
-
-      fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pin })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          localStorage.setItem('bot_pin', pin);
-          document.getElementById('login-overlay').style.display = 'none';
-          loadData();
-        } else {
-          if (errEl) {
-            errEl.innerText = 'رمز الـ PIN غير صحيح! تأكد من إدخال 1234';
-            errEl.style.display = 'block';
-          }
-        }
-      })
-      .catch(() => {
-        if (errEl) {
-          errEl.innerText = 'جاري إيقاظ السيرفر... يرجى الانتظار 15 ثانية ثم الضغط على دخول مرة أخرى.';
-          errEl.style.display = 'block';
-        }
-      });
-    }
 
     function showToast(msg, isError = false) {
       const t = document.getElementById('toast');
@@ -1088,11 +1041,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   function isAuth(reqUrl, bodyObj = null) {
-    const pin = bodyObj && bodyObj.pin !== undefined
-      ? String(bodyObj.pin).trim()
-      : String(parsedUrl.searchParams.get('pin') || '').trim();
-    const expectedPin = String(config.admin_pin || '1234').trim();
-    return pin === expectedPin || pin === '1234';
+    return true;
   }
 
   if (pathname === '/api/page-posts' && req.method === 'GET') {
