@@ -69,7 +69,7 @@ async function likeComment(commentId) {
   }
 }
 
-// 2. Publicly reply to a comment with a random varied message
+// 2. Publicly reply to a comment with a random varied message (ONLY ONCE)
 async function replyPublicComment(commentId, recipientName) {
   try {
     const randomReply = PUBLIC_COMMENT_REPLIES[Math.floor(Math.random() * PUBLIC_COMMENT_REPLIES.length)];
@@ -92,7 +92,6 @@ async function replyPublicComment(commentId, recipientName) {
 
 // 3. Send Private Message & PDF after randomized delay (15s to 150s)
 async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey) {
-  // Random delay between 15 seconds (15,000 ms) and 150 seconds (2.5 minutes = 150,000 ms)
   const delayMs = getRandomInt(15000, 150000);
   const delaySec = Math.round(delayMs / 1000);
   console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message to ${recipientName}...`);
@@ -116,7 +115,6 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
 
     if (textRes && textRes.message_id) {
       console.log(`[OK] Private text message delivered to ${recipientName}`);
-      repliedSet.add(uniqueKey);
 
       // B. Send PDF Attachment
       if (ATTACHMENT_ID) {
@@ -140,31 +138,64 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
         }
       }
     } else {
-      console.warn(`[WARN] Facebook response:`, textRes);
+      console.warn(`[WARN] Facebook private message response:`, textRes);
     }
   } catch (err) {
     console.error(`[ERROR] Failed to send private message to ${recipientName}:`, err.message);
   } finally {
+    // Always keep in repliedSet and remove from processingSet
+    repliedSet.add(uniqueKey);
     processingSet.delete(uniqueKey);
   }
 }
 
-// Core processing for a new comment
+// Core processing for a comment (ONLY TOP-LEVEL & NEVER NESTED REPLIES)
 async function processNewComment(comment) {
   const cId = comment.id;
   const senderId = comment.from ? comment.from.id : null;
   const senderName = comment.from ? comment.from.name : 'User';
 
-  if (!senderId || repliedSet.has(cId) || processingSet.has(cId)) return;
+  // 1. Skip comments from the Page itself
+  if (!senderId || senderId === PAGE_ID) {
+    return;
+  }
+
+  // 2. Skip if it is a nested reply / sub-comment (has parent comment)
+  if (comment.parent && comment.parent.id) {
+    return;
+  }
+
+  // 3. Skip if Page already liked this comment
+  if (comment.user_likes) {
+    repliedSet.add(cId);
+    return;
+  }
+
+  // 4. Skip if the comment already contains a sub-comment reply from our Page
+  if (comment.comments && comment.comments.data) {
+    const hasPageReply = comment.comments.data.some(sub => sub.from && sub.from.id === PAGE_ID);
+    if (hasPageReply) {
+      repliedSet.add(cId);
+      return;
+    }
+  }
+
+  // 5. Skip if already processed or currently processing in memory
+  if (repliedSet.has(cId) || processingSet.has(cId)) {
+    return;
+  }
+
+  // Mark immediately as processed
+  repliedSet.add(cId);
   processingSet.add(cId);
 
   console.log(`\n==================================================`);
-  console.log(`[NEW COMMENT DETECTED] From: ${senderName} | Text: "${comment.message}"`);
+  console.log(`[TOP-LEVEL COMMENT DETECTED] From: ${senderName} | Text: "${comment.message}"`);
 
-  // Step 1: Like the comment
+  // Step 1: Like the comment (Once)
   await likeComment(cId);
 
-  // Step 2: Random public reply on the comment
+  // Step 2: Random public reply on the comment (Once)
   await replyPublicComment(cId, senderName);
 
   // Step 3: Send private message & PDF after randomized delay (15s to 2.5m)
@@ -174,9 +205,9 @@ async function processNewComment(comment) {
 // Core loop: Check comments and conversations
 async function checkAndRespond() {
   try {
-    // 1. Check comments on target post
+    // 1. Check ONLY top-level comments on target post (filter=toplevel)
     if (TARGET_POST_ID) {
-      const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?limit=50&access_token=${ACCESS_TOKEN}`;
+      const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent,user_likes,comments{from,id}&limit=50&access_token=${ACCESS_TOKEN}`;
       const commentsData = await makeRequest(commentsUrl);
       
       if (commentsData && commentsData.data) {
@@ -199,6 +230,7 @@ async function checkAndRespond() {
           const msgId = lastMsg.id;
 
           if (!repliedSet.has(msgId) && !processingSet.has(msgId)) {
+            repliedSet.add(msgId);
             processingSet.add(msgId);
             sendPrivateMessageWithDelay(senderId, senderName, msgId);
           }
@@ -213,7 +245,7 @@ async function checkAndRespond() {
 // Simple HTTP server for Render Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Facebook Smart Auto Responder is running 24/7 on Render!\n');
+  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Top-Level comments only)!\n');
 });
 
 // Prevent process from crashing on unexpected network errors
