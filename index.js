@@ -1,16 +1,14 @@
 const http = require('http');
 const https = require('https');
 
-// ==========================================
-// 1. إعدادات الصفحة والمنشور والتوكن الدائم
-// ==========================================
+// Configuration
 const PAGE_ID = process.env.PAGE_ID || "1424795157375101";
 const TARGET_POST_ID = process.env.TARGET_POST_ID || "1424795157375101_122093934621520437";
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN || "EAAuuUwQY1zIBSzNNc26whvNxX61CvFdkhhKqbH0Fei8kUZAoFxusKEW0akCUS3iJqypk5YhlZByirvRI6ADKMnAK7D6QOwehHAFXsAHDWtpE4dwpv2YqEf6QZC13CYZCFyMiuTlZBnasbbrUItZBVzD6GcZAUK6buZAwZC0RBkBnKabePcTyXDPXf5piKZCzBYZAKFqETSv57YQIXZCtZCJ2Al5qxGDl4";
 const ATTACHMENT_ID = process.env.ATTACHMENT_ID || "1145582601544384";
 const PRIVATE_MESSAGE = process.env.REPLY_MESSAGE || "مرحباً بك! شكراً لتفاعلك معنا على الصفحة، تفضل ملف الـ PDF";
 
-// قائمة الردود العامة العشوائية المتنوعة
+// Random Public Comment Replies List
 const PUBLIC_COMMENT_REPLIES = [
   "أهلاً بك! تفقد صندوق الرسائل لديك، تم إرسال الملف لك بنجاح 📩",
   "مرحباً بك أخي الكريم! لقد أرسلت لك ملف الـ PDF في الخاص، بالتوفيق لك ✨",
@@ -21,11 +19,11 @@ const PUBLIC_COMMENT_REPLIES = [
   "مرحباً! تفضل بمراجعة رسائلك في ماسنجر، أرسلنا لك ملف الـ PDF المطلوب 🌟"
 ];
 
-// سجلات تتبع معرّفات التعليقات لمنع التكرار على نفس التعليق
+// Persistent tracker in memory: Tracks each comment ID strictly ONCE
 const processedComments = new Set();
 const processingComments = new Set();
 
-// دالة مساعدة لطلبات HTTP
+// Helper: HTTP request wrapper returning Promise
 function makeRequest(url, options = {}, postData = null) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, options, (res) => {
@@ -48,13 +46,15 @@ function makeRequest(url, options = {}, postData = null) {
   });
 }
 
+// Helper: Sleep function
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper: Random number between min and max (inclusive)
 function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// 1. الإعجاب بالتعليق
+// 1. Like a comment
 async function likeComment(commentId) {
   try {
     const url = `https://graph.facebook.com/v19.0/${commentId}/likes?access_token=${ACCESS_TOKEN}`;
@@ -69,7 +69,7 @@ async function likeComment(commentId) {
   }
 }
 
-// 2. الرد بتعليق عام عشوائي
+// 2. Publicly reply to a comment with a random varied message (Strictly once per comment ID)
 async function replyPublicComment(commentId, recipientName) {
   try {
     const randomReply = PUBLIC_COMMENT_REPLIES[Math.floor(Math.random() * PUBLIC_COMMENT_REPLIES.length)];
@@ -81,30 +81,29 @@ async function replyPublicComment(commentId, recipientName) {
     }, payload);
 
     if (res && res.id) {
-      console.log(`[OK] Public comment reply posted to ${recipientName}: "${randomReply}"`);
+      console.log(`[OK] Public comment reply posted: "${randomReply}"`);
     } else {
       console.log(`[COMMENT INFO] Public reply status:`, res.error ? res.error.message : res);
     }
   } catch (err) {
-    console.warn(`[WARN] Could not post public comment to ${recipientName}:`, err.message);
+    console.warn(`[WARN] Could not post public comment:`, err.message);
   }
 }
 
-// 3. إرسال الرسالة الخاصة وملف الـ PDF بعد تأخير زمني
-async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey) {
-  // وقت تأخير طبيعي (بين 10 و 25 ثانية)
+// 3. Send Private Message & PDF after short natural delay (Strictly once per comment ID)
+async function sendPrivateMessageWithDelay(commentId, senderId, senderName) {
   const delayMs = getRandomInt(10000, 25000);
   const delaySec = Math.round(delayMs / 1000);
-  console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message & PDF to ${recipientName}...`);
+  console.log(`[DELAY] Waiting ${delaySec} seconds before sending private Messenger message & PDF for comment ${commentId}...`);
 
   await sleep(delayMs);
 
-  console.log(`[${new Date().toISOString()}] Sending private message & PDF to ${recipientName} (${recipientId})...`);
+  console.log(`[${new Date().toISOString()}] Sending private message & PDF for comment ${commentId}...`);
 
   try {
-    // أ. إرسال الرسالة النصية في الخاص
+    // A. Send Text message via Send API using recipient.comment_id
     const textPayload = {
-      recipient: { id: recipientId },
+      recipient: commentId ? { comment_id: commentId } : { id: senderId },
       message: { text: PRIVATE_MESSAGE }
     };
     
@@ -114,16 +113,20 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
       headers: { 'Content-Type': 'application/json' }
     }, textPayload);
 
+    let targetRecipientId = senderId;
     if (textRes && textRes.message_id) {
-      console.log(`[OK] Private text message delivered to ${recipientName} (ID: ${textRes.message_id})`);
+      console.log(`[OK] Private text message delivered (ID: ${textRes.message_id})`);
+      if (textRes.recipient_id) {
+        targetRecipientId = textRes.recipient_id;
+      }
     } else {
       console.warn(`[WARN] Private message response:`, textRes);
     }
 
-    // ب. إرسال ملف الـ PDF في الخاص
-    if (ATTACHMENT_ID) {
+    // B. Send PDF Attachment to the resolved recipient
+    if (ATTACHMENT_ID && targetRecipientId) {
       const filePayload = {
-        recipient: { id: recipientId },
+        recipient: { id: targetRecipientId },
         message: {
           attachment: {
             type: 'file',
@@ -138,63 +141,62 @@ async function sendPrivateMessageWithDelay(recipientId, recipientName, uniqueKey
       }, filePayload);
 
       if (fileRes && fileRes.message_id) {
-        console.log(`[OK] PDF attachment delivered to ${recipientName} (ID: ${fileRes.message_id})`);
+        console.log(`[OK] PDF attachment delivered (ID: ${fileRes.message_id})`);
       } else {
         console.warn(`[WARN] PDF attachment response:`, fileRes);
       }
     }
   } catch (err) {
-    console.error(`[ERROR] Failed to send private message to ${recipientName}:`, err.message);
+    console.error(`[ERROR] Failed to send private message for comment ${commentId}:`, err.message);
   } finally {
-    processingComments.delete(uniqueKey);
-    processedComments.add(uniqueKey);
+    processingComments.delete(commentId);
+    processedComments.add(commentId);
   }
 }
 
-// معالجة كل تعليق رئيسي جديد بشكل مستقل
+// Core processing: Process each comment ID strictly once
 async function processNewComment(comment) {
   const cId = comment.id;
   const senderId = comment.from ? comment.from.id : null;
-  const senderName = comment.from ? comment.from.name : 'User';
+  const senderName = comment.from ? comment.from.name : 'متابع';
 
-  // 1. تجاهل تعليقات الصفحة نفسها
-  if (!senderId || senderId === PAGE_ID) {
+  // 1. Skip comments from the Page itself
+  if (senderId && senderId === PAGE_ID) {
     return;
   }
 
-  // 2. تجاهل الردود المتداخلة والفرعية تماماً
+  // 2. Skip nested replies (sub-comments)
   if (comment.parent && comment.parent.id) {
     return;
   }
 
-  // 3. تخطي هذا التعليق فقط إذا تم التعامل معه سابقاً
+  // 3. Skip if this comment ID was already processed or is currently being processed
   if (processedComments.has(cId) || processingComments.has(cId)) {
     return;
   }
 
-  // قفل معرّف التعليق لمنع التكرار عليه
+  // Lock this comment ID immediately so it can NEVER be triggered twice!
   processedComments.add(cId);
   processingComments.add(cId);
 
   console.log(`\n==================================================`);
-  console.log(`[NEW COMMENT ON POST] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message}"`);
+  console.log(`[NEW COMMENT ON POST] Comment ID: ${cId} | From: ${senderName} | Text: "${comment.message || ''}"`);
 
-  // الخطوة 1: الإعجاب بالتعليق
+  // Step 1: Like this comment
   await likeComment(cId);
 
-  // الخطوة 2: الرد العام العشوائي
+  // Step 2: Random public reply on this comment
   await replyPublicComment(cId, senderName);
 
-  // الخطوة 3: إرسال الرسالة الخاصة والـ PDF بعد التأخير
-  sendPrivateMessageWithDelay(senderId, senderName, cId);
+  // Step 3: Send private message & PDF (once for this comment)
+  sendPrivateMessageWithDelay(cId, senderId, senderName);
 }
 
-// الحلقة الأساسية لفحص التعليقات الرئيسية فقط
+// Core loop: Check ONLY comments on the target post
 async function checkAndRespond() {
   try {
     if (!TARGET_POST_ID) return;
 
-    // جلب التعليقات الرئيسية فقط عبر filter=toplevel
     const commentsUrl = `https://graph.facebook.com/v19.0/${TARGET_POST_ID}/comments?filter=toplevel&fields=id,from,message,parent&limit=50&access_token=${ACCESS_TOKEN}`;
     const commentsData = await makeRequest(commentsUrl);
     
@@ -208,10 +210,10 @@ async function checkAndRespond() {
   }
 }
 
-// خادم HTTP مخصص لمنصة Render للبقاء متصلاً 24/7
+// Simple HTTP server for Render Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Per-Comment Dispatch)!\n');
+  res.end('Facebook Smart Auto Responder is running 24/7 on Render (Single Reply Per Comment)!\n');
 });
 
 process.on('uncaughtException', (err) => {
@@ -221,11 +223,9 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('[UNHANDLED REJECTION]', reason);
 });
 
-// الاستماع على منفذ Render العام 0.0.0.0
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running and listening on 0.0.0.0:${PORT}`);
   checkAndRespond();
-  // تكرار الفحص التلقائي كل 20 ثانية
   setInterval(checkAndRespond, 20 * 1000);
 });
