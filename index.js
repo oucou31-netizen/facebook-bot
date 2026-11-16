@@ -19,12 +19,12 @@ let config = {
   enable_like: true,
   enable_public_reply: true,
   enable_private_reply: true,
-  private_message: 'أهلاً بك! تفضل المطلوب 🌟\n\nتابع صفحتنا للاستفادة من كل جديد ومفيد قادماً 👍',
+  private_message: '\u0623\u0647\u0644\u0627\u064b \u0628\u0643! \u062a\u0641\u0636\u0644 \u0627\u0644\u0645\u0637\u0644\u0648\u0628 \ud83c\udf1f\n\n\u062a\u0627\u0628\u0639 \u0635\u0641\u062d\u062a\u0646\u0627 \u0644\u0644\u0627\u0633\u062a\u0641\u0627\u062f\u0629 \u0645\u0646 \u0643\u0644 \u062c\u062f\u064a\u062f \u0648\u0645\u0641\u064a\u062f \u0642\u0627\u062f\u0645\u0627\u064b \ud83d\udc4d',
   public_replies: [
-    'تم الرد وإرسال التفاصيل في الخاص، شكراً لتفاعلك 📩',
-    'أهلاً بك! تفقد صندوق الرسائل لديك، تم الرد بنجاح 👍',
-    'تم الرد في الخاص، بالتوفيق لك ✨',
-    'شكراً لاهتمامك! راجع رسائل صفحتك 📥'
+    '\u062a\u0645 \u0627\u0644\u0631\u062f \u0648\u0625\u0631\u0633\u0627\u0644 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644 \u0641\u064a \u0627\u0644\u062e\u0627\u0635\u060c \u0634\u0643\u0631\u0627\u064b \u0644\u062a\u0641\u0627\u0639\u0644\u0643 \ud83d\udce9',
+    '\u0623\u0647\u0644\u0627\u064b \u0628\u0643! \u062a\u0641\u0642\u062f \u0635\u0646\u062f\u0648\u0642 \u0627\u0644\u0631\u0633\u0627\u0626\u0644 \u0644\u062f\u064a\u0643\u060c \u062a\u0645 \u0627\u0644\u0631\u062f \u0628\u0646\u062c\u0627\u062d \ud83d\udc4d',
+    '\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635\u060c \u0628\u0627\u0644\u062a\u0648\u0641\u064a\u0642 \u0644\u0643 \u2728',
+    '\u0634\u0643\u0631\u0627\u064b \u0644\u0627\u0647\u062a\u0645\u0627\u0645\u0643! \u0631\u0627\u062c\u0639 \u0631\u0633\u0627\u0626\u0644 \u0635\u0641\u062d\u062a\u0643 \ud83d\udce5'
   ]
 };
 
@@ -41,7 +41,7 @@ function saveConfig() {
 }
 
 // ============================================================
-// PROCESSED IDS (prevent duplicate replies)
+// PROCESSED IDS
 // ============================================================
 const processedSet = new Set();
 const processingSet = new Set();
@@ -66,7 +66,7 @@ function markProcessed(id) {
 // STATS
 // ============================================================
 let totalReplies = 0;
-let lastLog = 'السيرفر يعمل وجاهز ✅';
+let lastLog = '\u0627\u0644\u0633\u064a\u0631\u0641\u0631 \u064a\u0639\u0645\u0644 \u0648\u062c\u0627\u0647\u0632 \u2705';
 
 // ============================================================
 // HELPERS
@@ -76,8 +76,8 @@ function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + m
 
 function normalizePin(str) {
   if (!str) return '';
-  const ar = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-  return String(str).trim().replace(/[٠-٩]/g, w => ar.indexOf(w)).replace(/\s+/g,'');
+  const ar = ['\u0660','\u0661','\u0662','\u0663','\u0664','\u0665','\u0666','\u0667','\u0668','\u0669'];
+  return String(str).trim().replace(/[\u0660-\u0669]/g, w => ar.indexOf(w)).replace(/\s+/g,'');
 }
 
 function request(url, opts, body) {
@@ -105,7 +105,7 @@ async function likeComment(id) {
 
 async function replyPublic(id) {
   try {
-    const replies = config.public_replies.length ? config.public_replies : ['تم الرد في الخاص 📩'];
+    const replies = config.public_replies.length ? config.public_replies : ['\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \ud83d\udce9'];
     const text = replies[Math.floor(Math.random() * replies.length)];
     await request('https://graph.facebook.com/v19.0/' + id + '/comments?access_token=' + config.access_token, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }
@@ -116,11 +116,9 @@ async function replyPublic(id) {
 
 async function sendPrivate(commentId, senderId, name) {
   const delay = rand(10000, 20000);
-  console.log('[DELAY] Waiting ' + Math.round(delay/1000) + 's before DM to ' + name);
+  console.log('[DELAY] ' + Math.round(delay/1000) + 's before DM to ' + name);
   await sleep(delay);
-
   try {
-    // Send text
     const textPayload = {
       recipient: commentId ? { comment_id: commentId } : { id: senderId },
       message: { text: config.private_message }
@@ -129,9 +127,8 @@ async function sendPrivate(commentId, senderId, name) {
     const textRes = await request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, textPayload);
     let recipientId = senderId;
     if (textRes && textRes.recipient_id) recipientId = textRes.recipient_id;
-    if (textRes && textRes.message_id) console.log('[DM TEXT] Sent to ' + name);
+    if (textRes && textRes.message_id) console.log('[DM] Text sent to ' + name);
 
-    // Send attachment if any
     const aType = config.attachment_type || 'none';
     if (aType !== 'none' && config.attachment_id && recipientId) {
       const isUrl = /^https?:\/\//i.test(config.attachment_id);
@@ -145,13 +142,11 @@ async function sendPrivate(commentId, senderId, name) {
         }
       };
       const mediaRes = await request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, mediaPayload);
-      if (mediaRes && mediaRes.message_id) console.log('[DM MEDIA] ' + aType + ' sent to ' + name);
+      if (mediaRes && mediaRes.message_id) console.log('[DM] Media sent to ' + name);
     }
-
     totalReplies++;
-    const tLabel = aType === 'none' ? 'نص فقط' : aType === 'image' ? 'صورة' : aType === 'video' ? 'فيديو' : 'ملف PDF';
-    lastLog = 'تم الرد (' + tLabel + ') على: ' + name + ' — ' + new Date().toLocaleTimeString('ar-EG');
-
+    const tLabel = aType === 'none' ? '\u0646\u0635 \u0641\u0642\u0637' : aType === 'image' ? '\u0635\u0648\u0631\u0629' : aType === 'video' ? '\u0641\u064a\u062f\u064a\u0648' : '\u0645\u0644\u0641 PDF';
+    lastLog = '\u062a\u0645 \u0627\u0644\u0631\u062f (' + tLabel + ') \u0639\u0644\u0649: ' + name + ' \u2014 ' + new Date().toLocaleTimeString('ar-EG');
   } catch(e) {
     console.error('[DM ERROR] ' + e.message);
   } finally {
@@ -167,20 +162,17 @@ async function processComment(c) {
     markProcessed(id); return;
   }
   if (processedSet.has(id) || processingSet.has(id)) return;
-
   processingSet.add(id);
   markProcessed(id);
-
-  const name = c.from ? c.from.name : 'متابع';
-  console.log('\n[NEW COMMENT] ' + id + ' | ' + name + ' | "' + (c.message || '') + '"');
-
+  const name = c.from ? c.from.name : '\u0645\u062a\u0627\u0628\u0639';
+  console.log('[NEW] ' + id + ' | ' + name + ' | "' + (c.message || '') + '"');
   if (config.enable_like !== false) await likeComment(id);
   if (config.enable_public_reply !== false) await replyPublic(id);
   if (config.enable_private_reply !== false) {
     await sendPrivate(id, c.from ? c.from.id : null, name);
   } else {
     totalReplies++;
-    lastLog = 'تمت معالجة تعليق ' + name + ' (الخاص معطل)';
+    lastLog = '\u062a\u0645\u062a \u0645\u0639\u0627\u0644\u062c\u0629 \u062a\u0639\u0644\u064a\u0642 ' + name;
     processingSet.delete(id);
   }
 }
@@ -203,7 +195,7 @@ async function checkComments() {
   }
 }
 
-// Upload media helper
+// Upload media
 function uploadMedia(fileBuffer, fileName, type, mime, token) {
   return new Promise((resolve, reject) => {
     const boundary = '----FB' + Date.now();
@@ -257,528 +249,453 @@ async function resolvePostId(input) {
 }
 
 // ============================================================
-// HTML UI — Simple & Clean
+// HTML
 // ============================================================
 function getHtml() {
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>بوت تك أنفو</title>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f172a">
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
-body { background: #0f172a; color: #f1f5f9; min-height: 100vh; padding-bottom: 80px; }
-
-/* Header */
-.hdr { background: #1e293b; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 10; }
-.hdr h1 { font-size: 1rem; font-weight: 700; }
-.dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-left: 6px; box-shadow: 0 0 8px #22c55e; }
-
-/* Nav */
-.nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; z-index: 10; }
-.nav button { flex: 1; background: none; border: none; color: #64748b; padding: 10px 4px 14px; font-size: 0.65rem; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.nav button.on { color: #3b82f6; }
-.nav button span.ico { font-size: 1.3rem; }
-
-/* Pages */
-.page { display: none; padding: 14px; max-width: 560px; margin: 0 auto; }
-.page.on { display: block; }
-
-/* Card */
-.card { background: #1e293b; border-radius: 14px; padding: 16px; margin-bottom: 14px; border: 1px solid #334155; }
-.card h2 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-
-/* Stats */
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-.stat { background: #1e293b; border-radius: 12px; padding: 14px; text-align: center; border: 1px solid #334155; }
-.stat .n { font-size: 1.8rem; font-weight: 800; color: #60a5fa; }
-.stat .l { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
-
-/* Switch row */
-.sw-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #0f172a; border-radius: 10px; margin-bottom: 8px; }
-.sw-row:last-child { margin-bottom: 0; }
-.sw-info { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }
-.sw-info small { display: block; font-size: 0.7rem; color: #94a3b8; font-weight: 400; margin-top: 2px; }
-.sw { position: relative; width: 46px; height: 25px; flex-shrink: 0; }
-.sw input { opacity: 0; width: 0; height: 0; }
-.sw .track { position: absolute; inset: 0; background: #334155; border-radius: 25px; cursor: pointer; transition: 0.2s; }
-.sw .track:before { content: ''; position: absolute; width: 19px; height: 19px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: 0.2s; }
-.sw input:checked + .track { background: #10b981; }
-.sw input:checked + .track:before { transform: translateX(21px); }
-
-/* Input */
-label { display: block; font-size: 0.78rem; color: #94a3b8; margin-bottom: 5px; }
-input[type=text], input[type=password], textarea, select {
-  width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 10px;
-  padding: 10px 12px; color: #f1f5f9; font-size: 0.88rem; outline: none; margin-bottom: 12px;
-}
-input:focus, textarea:focus { border-color: #3b82f6; }
-textarea { resize: vertical; min-height: 80px; }
-
-/* Buttons */
-.btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
-.btn-blue { background: #2563eb; color: white; }
-.btn-green { background: #059669; color: white; }
-.btn-gray { background: #334155; color: #e2e8f0; }
-.btn + .btn { margin-top: 8px; }
-.btn:active { opacity: 0.85; }
-.btn:disabled { opacity: 0.5; cursor: default; }
-
-/* Toast */
-.toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-120px); background: #10b981; color: white; padding: 10px 22px; border-radius: 25px; font-size: 0.85rem; font-weight: 700; z-index: 100; transition: transform 0.3s; white-space: nowrap; }
-.toast.show { transform: translateX(-50%) translateY(0); }
-.toast.err { background: #ef4444; }
-
-/* Lock screen */
-#lock { position: fixed; inset: 0; background: #0f172a; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.lock-box { background: #1e293b; border-radius: 20px; padding: 28px 20px; width: 100%; max-width: 340px; text-align: center; border: 1px solid #334155; }
-.lock-box h2 { font-size: 1.1rem; margin-bottom: 6px; }
-.lock-box p { font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px; }
-.lock-box input { text-align: center; font-size: 1.5rem; letter-spacing: 8px; font-weight: 800; }
-
-/* Post list */
-.post-item { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
-.post-item:active { border-color: #3b82f6; }
-.post-item .pt { font-size: 0.83rem; font-weight: 600; line-height: 1.4; }
-.post-item .pm { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
-
-/* Attachment types */
-.types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-.type-btn { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px 8px; text-align: center; cursor: pointer; font-size: 0.8rem; font-weight: 700; color: #94a3b8; }
-.type-btn.on { border-color: #3b82f6; background: rgba(59,130,246,0.1); color: #60a5fa; }
-.type-btn .ico { font-size: 1.3rem; display: block; margin-bottom: 4px; }
-</style>
-</head>
-<body>
-
-<!-- TOAST -->
-<div class="toast" id="toast">✓</div>
-
-<!-- LOCK SCREEN -->
-<div id="lock">
-  <div class="lock-box">
-    <div style="font-size:2.5rem;margin-bottom:10px;">🔐</div>
-    <h2>قفل الأمان</h2>
-    <p>الرمز الافتراضي: <strong style="color:#60a5fa">1234</strong></p>
-    <input type="text" id="pin-inp" inputmode="numeric" value="1234" placeholder="PIN" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-blue" onclick="doLogin()">دخول 🚀</button>
-    <p id="pin-err" style="color:#ef4444;font-size:0.8rem;margin-top:10px;display:none;"></p>
-  </div>
-</div>
-
-<!-- HEADER -->
-<div class="hdr">
-  <h1>🤖 بوت تك أنفو</h1>
-  <span><span class="dot"></span>يعمل 24/7</span>
-</div>
-
-<!-- PAGE 1: DASHBOARD -->
-<div class="page on" id="p-dash">
-  <div class="stats">
-    <div class="stat"><div class="n" id="s-replies">0</div><div class="l">ردود أُرسلت</div></div>
-    <div class="stat"><div class="n" id="s-type" style="font-size:1rem;margin-top:6px;">ملف 📄</div><div class="l">نوع المرفق</div></div>
-  </div>
-
-  <div class="card">
-    <h2>⚡ تحكم سريع</h2>
-    <div class="sw-row">
-      <div class="sw-info"><span>👍</span><div>الإعجاب بالتعليق<small>لايك تلقائي</small></div></div>
-      <label class="sw"><input type="checkbox" id="sw-like" onchange="quickSave('enable_like',this)"><span class="track"></span></label>
-    </div>
-    <div class="sw-row">
-      <div class="sw-info"><span>💬</span><div>الرد العلني<small>رد في التعليقات</small></div></div>
-      <label class="sw"><input type="checkbox" id="sw-public" onchange="quickSave('enable_public_reply',this)"><span class="track"></span></label>
-    </div>
-    <div class="sw-row">
-      <div class="sw-info"><span>📩</span><div>رسالة الخاص<small>ماسنجر + مرفق</small></div></div>
-      <label class="sw"><input type="checkbox" id="sw-private" onchange="quickSave('enable_private_reply',this)"><span class="track"></span></label>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>📌 المنشور النشط</h2>
-    <div style="font-size:0.8rem;color:#38bdf8;word-break:break-all;background:#0f172a;padding:10px;border-radius:8px;margin-bottom:10px;" id="d-post">—</div>
-    <h2 style="margin-top:4px;">📎 المرفق</h2>
-    <div style="font-size:0.8rem;color:#a7f3d0;word-break:break-all;background:#0f172a;padding:10px;border-radius:8px;" id="d-attach">—</div>
-  </div>
-
-  <div class="card">
-    <h2>🕒 آخر نشاط</h2>
-    <p style="font-size:0.83rem;color:#cbd5e1;line-height:1.6;" id="d-log">جاري التحميل...</p>
-    <button class="btn btn-gray" style="margin-top:10px;" onclick="loadData()">تحديث 🔄</button>
-  </div>
-</div>
-
-<!-- PAGE 2: POST -->
-<div class="page" id="p-post">
-  <div class="card">
-    <h2>🎯 المنشور المستهدف</h2>
-    <button class="btn btn-gray" style="margin-bottom:12px;" onclick="fetchPosts()">📋 جلب منشورات الصفحة</button>
-    <div id="posts-list" style="display:none;max-height:260px;overflow-y:auto;margin-bottom:12px;"></div>
-    <label>رابط المنشور أو ID أو عنوانه:</label>
-    <input type="text" id="f-postid" placeholder="https://facebook.com/... أو ID">
-    <div id="post-resolved" style="display:none;font-size:0.78rem;color:#60a5fa;background:rgba(59,130,246,0.1);border:1px solid #3b82f6;border-radius:8px;padding:8px;margin-bottom:10px;"></div>
-    <button class="btn btn-blue" onclick="saveAll()">حفظ وتطبيق 💾</button>
-  </div>
-</div>
-
-<!-- PAGE 3: ATTACHMENT -->
-<div class="page" id="p-attach">
-  <div class="card">
-    <h2>📎 نوع المرفق</h2>
-    <div class="types">
-      <div class="type-btn on" id="t-none" onclick="pickType('none')"><span class="ico">🚫</span>بدون مرفق</div>
-      <div class="type-btn" id="t-image" onclick="pickType('image')"><span class="ico">🖼️</span>صورة</div>
-      <div class="type-btn" id="t-video" onclick="pickType('video')"><span class="ico">🎥</span>فيديو</div>
-      <div class="type-btn" id="t-file" onclick="pickType('file')"><span class="ico">📄</span>ملف PDF</div>
-    </div>
-
-    <div id="upload-area">
-      <div style="border:2px dashed #475569;border-radius:10px;padding:20px;text-align:center;cursor:pointer;margin-bottom:10px;" onclick="document.getElementById('file-inp').click()">
-        <div id="up-ico" style="font-size:2rem;margin-bottom:6px;">📁</div>
-        <div id="up-label" style="font-size:0.85rem;font-weight:600;">اضغط لاختيار ملف</div>
-        <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">صورة، فيديو، أو PDF</div>
-      </div>
-      <input type="file" id="file-inp" style="display:none;" accept="image/*,video/*,application/pdf" onchange="onFile(this)">
-      <button class="btn btn-green" id="btn-up" onclick="doUpload()" disabled>رفع واستخراج المعرف 🚀</button>
-      <label style="margin-top:14px;">معرف المرفق (Attachment ID):</label>
-      <input type="text" id="f-attid" placeholder="Attachment ID">
-    </div>
-
-    <button class="btn btn-blue" style="margin-top:4px;" onclick="saveAll()">حفظ 💾</button>
-  </div>
-</div>
-
-<!-- PAGE 4: MESSAGES -->
-<div class="page" id="p-msg">
-  <div class="card">
-    <h2>📩 رسالة الخاص (ماسنجر)</h2>
-    <textarea id="f-privmsg" rows="4" placeholder="نص الرسالة التي تُرسل في الخاص..."></textarea>
-    <h2 style="margin-bottom:8px;">💬 ردود التعليقات العلنية</h2>
-    <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">كل سطر = رد واحد (يختار البوت عشوائياً)</p>
-    <textarea id="f-pubreplies" rows="5" placeholder="رد 1&#10;رد 2&#10;رد 3..."></textarea>
-    <button class="btn btn-blue" onclick="saveAll()">حفظ الرسائل 💾</button>
-  </div>
-</div>
-
-<!-- PAGE 5: SETTINGS -->
-<div class="page" id="p-set">
-  <div class="card">
-    <h2>⚙️ إعدادات الصفحة</h2>
-    <label>معرف الصفحة (Page ID):</label>
-    <input type="text" id="f-pageid">
-    <label>رمز الوصول (Access Token):</label>
-    <input type="text" id="f-token">
-    <label>رمز PIN جديد (اتركه فارغاً للإبقاء على الحالي):</label>
-    <input type="text" id="f-pin" placeholder="مثال: 5678">
-    <button class="btn btn-blue" onclick="saveAll()">حفظ الإعدادات 💾</button>
-    <button class="btn btn-gray" style="margin-top:8px;" onclick="lockNow()">🔒 قفل اللوحة</button>
-  </div>
-</div>
-
-<!-- BOTTOM NAV -->
-<nav class="nav">
-  <button id="nb-dash" class="on" onclick="goPage('dash')"><span class="ico">🏠</span>الرئيسية</button>
-  <button id="nb-post" onclick="goPage('post')"><span class="ico">📌</span>المنشور</button>
-  <button id="nb-attach" onclick="goPage('attach')"><span class="ico">📎</span>المرفق</button>
-  <button id="nb-msg" onclick="goPage('msg')"><span class="ico">💬</span>الرسائل</button>
-  <button id="nb-set" onclick="goPage('set')"><span class="ico">⚙️</span>الإعدادات</button>
-</nav>
-
-<script>
-// ---- STATE ----
-var selFile = null, selName = '', selMime = '';
-
-// ---- UTILS ----
-function toast(msg, err) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (err ? ' err' : '');
-  setTimeout(function(){ t.className = 'toast'; }, 3000);
-}
-
-function normalPin(s) {
-  var ar = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-  return String(s||'').trim().replace(/[٠-٩]/g, function(w){ return ar.indexOf(w); }).replace(/\\s+/g,'');
-}
-
-function getPin() { return localStorage.getItem('pin') || ''; }
-
-// ---- NAVIGATION ----
-function goPage(id) {
-  var pages = ['dash','post','attach','msg','set'];
-  pages.forEach(function(p) {
-    document.getElementById('p-' + p).style.display = 'none';
-    document.getElementById('nb-' + p).className = '';
-  });
-  document.getElementById('p-' + id).style.display = 'block';
-  document.getElementById('nb-' + id).className = 'on';
-  window.scrollTo(0, 0);
-}
-
-// ---- LOGIN ----
-window.onload = function() {
-  // Hide all pages except dash first
-  ['post','attach','msg','set'].forEach(function(p){
-    document.getElementById('p-' + p).style.display = 'none';
-  });
-
-  if (localStorage.getItem('auth') === '1') {
-    document.getElementById('lock').style.display = 'none';
-    loadData();
-  } else {
-    document.getElementById('lock').style.display = 'flex';
-  }
-};
-
-function doLogin() {
-  var raw = document.getElementById('pin-inp').value;
-  var pin = normalPin(raw) || '1234';
-  var err = document.getElementById('pin-err');
-  err.style.display = 'none';
-
-  fetch('/api/login', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({pin: pin})
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (d.success) {
-      localStorage.setItem('auth', '1');
-      localStorage.setItem('pin', pin);
-      document.getElementById('lock').style.display = 'none';
-      loadData();
-      toast('مرحباً! تم الدخول بنجاح ✓');
-    } else {
-      err.textContent = 'رمز PIN خاطئ! حاول مجدداً.';
-      err.style.display = 'block';
-    }
-  })
-  .catch(function() {
-    // Server waking up
-    if (pin === '1234') {
-      localStorage.setItem('auth', '1');
-      localStorage.setItem('pin', pin);
-      document.getElementById('lock').style.display = 'none';
-      loadData();
-    } else {
-      err.textContent = 'السيرفر يستيقظ... انتظر 15 ثانية وأعد المحاولة.';
-      err.style.display = 'block';
-    }
-  });
-}
-
-function lockNow() {
-  localStorage.removeItem('auth');
-  document.getElementById('lock').style.display = 'flex';
-  toast('تم قفل اللوحة 🔒');
-}
-
-// ---- LOAD DATA ----
-function loadData() {
-  var pin = getPin();
-  fetch('/api/config?pin=' + encodeURIComponent(pin))
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (!d.success) return;
-    var c = d.config;
-
-    // Fill fields
-    document.getElementById('f-pageid').value = c.page_id || '';
-    document.getElementById('f-postid').value = c.target_post_id || '';
-    document.getElementById('f-token').value = c.access_token || '';
-    document.getElementById('f-attid').value = c.attachment_id || '';
-    document.getElementById('f-privmsg').value = c.private_message || '';
-    document.getElementById('f-pubreplies').value = (c.public_replies || []).join('\\n');
-
-    // Switches
-    document.getElementById('sw-like').checked = c.enable_like !== false;
-    document.getElementById('sw-public').checked = c.enable_public_reply !== false;
-    document.getElementById('sw-private').checked = c.enable_private_reply !== false;
-
-    // Attachment type
-    pickType(c.attachment_type || 'file');
-
-    // Dashboard
-    document.getElementById('s-replies').textContent = d.stats.totalRepliesSent || 0;
-    var tmap = {none:'بلا مرفق 🚫', image:'صورة 🖼️', video:'فيديو 🎥', file:'ملف 📄'};
-    document.getElementById('s-type').textContent = tmap[c.attachment_type] || 'ملف 📄';
-    document.getElementById('d-post').textContent = c.target_post_id || 'لم يُحدد';
-    document.getElementById('d-attach').textContent = c.attachment_type === 'none'
-      ? 'بدون مرفق' : (c.attachment_id ? 'ID: ' + c.attachment_id : 'لم يُرفع بعد');
-    document.getElementById('d-log').textContent = d.stats.lastActionLog || 'جاهز';
-  })
-  .catch(function(){});
-}
-
-// ---- QUICK TOGGLE ----
-function quickSave(key, el) {
-  var body = {pin: getPin()};
-  body[key] = el.checked;
-  fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (d.success) {
-      var n = {enable_like:'الإعجاب', enable_public_reply:'الرد العلني', enable_private_reply:'رسالة الخاص'};
-      toast((n[key]||key) + ': ' + (el.checked ? 'مُفعّل ✓' : 'مُعطّل ⏸'));
-    } else { toast('خطأ في الحفظ', true); el.checked = !el.checked; }
-  })
-  .catch(function(){ toast('تعذر الاتصال', true); el.checked = !el.checked; });
-}
-
-// ---- ATTACHMENT TYPE ----
-function pickType(type) {
-  ['none','image','video','file'].forEach(function(t){
-    document.getElementById('t-' + t).className = 'type-btn' + (t === type ? ' on' : '');
-  });
-  document.getElementById('upload-area').style.display = type === 'none' ? 'none' : 'block';
-  if (type === 'image') { document.getElementById('up-ico').textContent = '🖼️'; }
-  else if (type === 'video') { document.getElementById('up-ico').textContent = '🎥'; }
-  else { document.getElementById('up-ico').textContent = '📄'; }
-  window._selType = type;
-}
-
-// ---- SAVE ALL ----
-function saveAll() {
-  var pin = getPin();
-  var body = {
-    pin: pin,
-    page_id: document.getElementById('f-pageid').value.trim(),
-    target_post_id: document.getElementById('f-postid').value.trim(),
-    access_token: document.getElementById('f-token').value.trim(),
-    attachment_id: document.getElementById('f-attid').value.trim(),
-    attachment_type: window._selType || 'file',
-    enable_like: document.getElementById('sw-like').checked,
-    enable_public_reply: document.getElementById('sw-public').checked,
-    enable_private_reply: document.getElementById('sw-private').checked,
-    private_message: document.getElementById('f-privmsg').value.trim(),
-    public_replies: document.getElementById('f-pubreplies').value.split('\\n').map(function(s){ return s.trim(); }).filter(function(s){ return s; })
-  };
-  var newPin = document.getElementById('f-pin').value.trim();
-  if (newPin) body.admin_pin = newPin;
-
-  fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (d.success) {
-      if (newPin) { localStorage.setItem('pin', newPin); document.getElementById('f-pin').value = ''; }
-      if (d.resolved_post_id) {
-        document.getElementById('f-postid').value = d.resolved_post_id;
-        var ri = document.getElementById('post-resolved');
-        ri.textContent = 'تم التعرف على المنشور: ' + d.resolved_post_id;
-        ri.style.display = 'block';
-      }
-      toast('تم الحفظ بنجاح ✓');
-      loadData();
-    } else {
-      toast(d.message || 'خطأ في الحفظ', true);
-    }
-  })
-  .catch(function(){ toast('تعذر الاتصال بالسيرفر', true); });
-}
-
-// ---- FETCH POSTS ----
-function fetchPosts() {
-  var pin = getPin();
-  var list = document.getElementById('posts-list');
-  list.style.display = 'block';
-  list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:10px;">جاري الجلب... ⏳</p>';
-  fetch('/api/page-posts?pin=' + encodeURIComponent(pin))
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (!d.success || !d.posts || !d.posts.length) {
-      list.innerHTML = '<p style="color:#ef4444;text-align:center;padding:10px;">تعذر جلب المنشورات</p>';
-      return;
-    }
-    list.innerHTML = d.posts.map(function(p) {
-      var txt = p.message ? p.message.substring(0,90) : '(منشور صورة)';
-      var date = new Date(p.created_time).toLocaleDateString('ar-EG');
-      return '<div class="post-item" onclick="pickPost(\\'' + p.id + '\\',\\'' + txt.replace(/'/g,"\\\\'") + '\\')">' +
-        '<div class="pt">' + txt + '</div>' +
-        '<div class="pm">🆔 ' + p.id + ' &nbsp; 📅 ' + date + '</div>' +
-        '</div>';
-    }).join('');
-  })
-  .catch(function(){
-    list.innerHTML = '<p style="color:#ef4444;text-align:center;padding:10px;">خطأ في الاتصال</p>';
-  });
-}
-
-function pickPost(id, title) {
-  document.getElementById('f-postid').value = id;
-  var ri = document.getElementById('post-resolved');
-  ri.textContent = 'تم اختيار: ' + title;
-  ri.style.display = 'block';
-  toast('تم تحديد المنشور! اضغط حفظ ✓');
-}
-
-// ---- FILE UPLOAD ----
-function onFile(inp) {
-  if (!inp.files || !inp.files[0]) return;
-  var f = inp.files[0];
-  selName = f.name;
-  selMime = f.type;
-  document.getElementById('up-label').textContent = 'تم الاختيار: ' + f.name;
-  document.getElementById('btn-up').disabled = false;
-  if (f.type.startsWith('image/')) pickType('image');
-  else if (f.type.startsWith('video/')) pickType('video');
-  else pickType('file');
-  var reader = new FileReader();
-  reader.onload = function(e) { selFile = e.target.result.split(',')[1]; };
-  reader.readAsDataURL(f);
-}
-
-function doUpload() {
-  if (!selFile) return;
-  var btn = document.getElementById('btn-up');
-  btn.textContent = 'جاري الرفع... ⏳';
-  btn.disabled = true;
-  var pin = getPin();
-  fetch('/api/upload-media', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({pin: pin, fileName: selName, fileType: window._selType || 'file', mimeType: selMime, fileData: selFile})
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(d) {
-    if (d.success && d.attachment_id) {
-      document.getElementById('f-attid').value = d.attachment_id;
-      toast('تم الرفع! المعرف: ' + d.attachment_id + ' ✓');
-      btn.textContent = 'تم الرفع ✓';
-      loadData();
-    } else {
-      toast(d.message || 'فشل الرفع', true);
-      btn.textContent = 'إعادة المحاولة';
-      btn.disabled = false;
-    }
-  })
-  .catch(function(){
-    toast('تعذر الرفع', true);
-    btn.textContent = 'إعادة المحاولة';
-    btn.disabled = false;
-  });
-}
-</script>
-</body>
-</html>`;
+  const html = [
+    '<!DOCTYPE html>',
+    '<html lang="ar" dir="rtl">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">',
+    '<title>\u0628\u0648\u062a \u062a\u0643 \u0623\u0646\u0641\u0648</title>',
+    '<meta name="apple-mobile-web-app-capable" content="yes">',
+    '<meta name="theme-color" content="#0f172a">',
+    '<style>',
+    '* { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }',
+    'body { background: #0f172a; color: #f1f5f9; min-height: 100vh; padding-bottom: 80px; }',
+    '.hdr { background: #1e293b; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 10; }',
+    '.hdr h1 { font-size: 1rem; font-weight: 700; }',
+    '.dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block; margin-left: 6px; box-shadow: 0 0 8px #22c55e; }',
+    '.nav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e293b; border-top: 1px solid #334155; display: flex; z-index: 10; }',
+    '.nav button { flex: 1; background: none; border: none; color: #64748b; padding: 10px 4px 14px; font-size: 0.65rem; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }',
+    '.nav button.on { color: #3b82f6; }',
+    '.nav button .ico { font-size: 1.3rem; }',
+    '.page { display: none; padding: 14px; max-width: 560px; margin: 0 auto; }',
+    '.page.on { display: block; }',
+    '.card { background: #1e293b; border-radius: 14px; padding: 16px; margin-bottom: 14px; border: 1px solid #334155; }',
+    '.card h2 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px; }',
+    '.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }',
+    '.stat { background: #1e293b; border-radius: 12px; padding: 14px; text-align: center; border: 1px solid #334155; }',
+    '.stat .n { font-size: 1.8rem; font-weight: 800; color: #60a5fa; }',
+    '.stat .l { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }',
+    '.sw-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #0f172a; border-radius: 10px; margin-bottom: 8px; }',
+    '.sw-info { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 600; }',
+    '.sw-info small { display: block; font-size: 0.7rem; color: #94a3b8; font-weight: 400; margin-top: 2px; }',
+    '.sw { position: relative; width: 46px; height: 25px; flex-shrink: 0; }',
+    '.sw input { opacity: 0; width: 0; height: 0; }',
+    '.sw .track { position: absolute; inset: 0; background: #334155; border-radius: 25px; cursor: pointer; transition: 0.2s; }',
+    '.sw .track:before { content: ""; position: absolute; width: 19px; height: 19px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: 0.2s; }',
+    '.sw input:checked + .track { background: #10b981; }',
+    '.sw input:checked + .track:before { transform: translateX(21px); }',
+    'label.lbl { display: block; font-size: 0.78rem; color: #94a3b8; margin-bottom: 5px; }',
+    'input[type=text], textarea, select { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 10px 12px; color: #f1f5f9; font-size: 0.88rem; outline: none; margin-bottom: 12px; }',
+    'input:focus, textarea:focus { border-color: #3b82f6; }',
+    'textarea { resize: vertical; min-height: 80px; font-family: Tahoma, Arial, sans-serif; }',
+    '.btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 0.9rem; font-weight: 700; cursor: pointer; margin-bottom: 8px; }',
+    '.btn-blue { background: #2563eb; color: white; }',
+    '.btn-green { background: #059669; color: white; }',
+    '.btn-gray { background: #334155; color: #e2e8f0; }',
+    '.btn:active { opacity: 0.85; }',
+    '.btn:disabled { opacity: 0.5; cursor: default; }',
+    '.toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-120px); background: #10b981; color: white; padding: 10px 22px; border-radius: 25px; font-size: 0.85rem; font-weight: 700; z-index: 100; transition: transform 0.3s; white-space: nowrap; max-width: 90vw; }',
+    '.toast.show { transform: translateX(-50%) translateY(0); }',
+    '.toast.err { background: #ef4444; }',
+    '#lock { position: fixed; inset: 0; background: #0f172a; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }',
+    '.lock-box { background: #1e293b; border-radius: 20px; padding: 28px 20px; width: 100%; max-width: 340px; text-align: center; border: 1px solid #334155; }',
+    '.lock-box h2 { font-size: 1.1rem; margin-bottom: 6px; }',
+    '.lock-box p { font-size: 0.8rem; color: #94a3b8; margin-bottom: 16px; }',
+    '.lock-box input { text-align: center; font-size: 1.5rem; letter-spacing: 8px; font-weight: 800; }',
+    '.post-item { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; }',
+    '.post-item:active { border-color: #3b82f6; }',
+    '.post-item .pt { font-size: 0.83rem; font-weight: 600; line-height: 1.4; }',
+    '.post-item .pm { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }',
+    '.types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }',
+    '.type-btn { background: #0f172a; border: 2px solid #334155; border-radius: 10px; padding: 12px 8px; text-align: center; cursor: pointer; font-size: 0.8rem; font-weight: 700; color: #94a3b8; }',
+    '.type-btn.on { border-color: #3b82f6; background: rgba(59,130,246,0.1); color: #60a5fa; }',
+    '.type-btn .ico { font-size: 1.3rem; display: block; margin-bottom: 4px; }',
+    '.info-box { background: rgba(59,130,246,0.1); border: 1px solid #3b82f6; border-radius: 8px; padding: 10px; font-size: 0.8rem; color: #60a5fa; margin-bottom: 10px; display: none; word-break: break-all; }',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<div class="toast" id="toast">OK</div>',
+    '<div id="lock">',
+    '  <div class="lock-box">',
+    '    <div style="font-size:2.5rem;margin-bottom:10px;">\ud83d\udd10</div>',
+    '    <h2>\u0642\u0641\u0644 \u0627\u0644\u0623\u0645\u0627\u0646</h2>',
+    '    <p>\u0627\u0644\u0631\u0645\u0632 \u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636\u064a: <strong style="color:#60a5fa">1234</strong></p>',
+    '    <input type="text" id="pin-inp" inputmode="numeric" value="1234" placeholder="PIN" onkeydown="if(event.key===\'Enter\')doLogin()">',
+    '    <button class="btn btn-blue" onclick="doLogin()">\u062f\u062e\u0648\u0644 \ud83d\ude80</button>',
+    '    <p id="pin-err" style="color:#ef4444;font-size:0.8rem;margin-top:10px;display:none;"></p>',
+    '  </div>',
+    '</div>',
+    '<div class="hdr">',
+    '  <h1>\ud83e\udd16 \u0628\u0648\u062a \u062a\u0643 \u0623\u0646\u0641\u0648</h1>',
+    '  <span><span class="dot"></span>\u064a\u0639\u0645\u0644 24/7</span>',
+    '</div>',
+    '<!-- DASH -->',
+    '<div class="page on" id="p-dash">',
+    '  <div class="stats">',
+    '    <div class="stat"><div class="n" id="s-replies">0</div><div class="l">\u0631\u062f\u0648\u062f \u0623\u064f\u0631\u0633\u0644\u062a</div></div>',
+    '    <div class="stat"><div class="n" id="s-type" style="font-size:1rem;margin-top:6px;">\u0645\u0644\u0641 \ud83d\udcc4</div><div class="l">\u0646\u0648\u0639 \u0627\u0644\u0645\u0631\u0641\u0642</div></div>',
+    '  </div>',
+    '  <div class="card">',
+    '    <h2>\u26a1 \u062a\u062d\u0643\u0645 \u0633\u0631\u064a\u0639</h2>',
+    '    <div class="sw-row">',
+    '      <div class="sw-info"><span>\ud83d\udc4d</span><div>\u0627\u0644\u0625\u0639\u062c\u0627\u0628 \u0628\u0627\u0644\u062a\u0639\u0644\u064a\u0642<small>\u0644\u0627\u064a\u0643 \u062a\u0644\u0642\u0627\u0626\u064a</small></div></div>',
+    '      <label class="sw"><input type="checkbox" id="sw-like" onchange="quickSave(\'enable_like\',this)"><span class="track"></span></label>',
+    '    </div>',
+    '    <div class="sw-row">',
+    '      <div class="sw-info"><span>\ud83d\udcac</span><div>\u0627\u0644\u0631\u062f \u0627\u0644\u0639\u0644\u0646\u064a<small>\u0631\u062f \u0641\u064a \u0627\u0644\u062a\u0639\u0644\u064a\u0642\u0627\u062a</small></div></div>',
+    '      <label class="sw"><input type="checkbox" id="sw-public" onchange="quickSave(\'enable_public_reply\',this)"><span class="track"></span></label>',
+    '    </div>',
+    '    <div class="sw-row">',
+    '      <div class="sw-info"><span>\ud83d\udce9</span><div>\u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u062e\u0627\u0635<small>\u0645\u0627\u0633\u0646\u062c\u0631 + \u0645\u0631\u0641\u0642</small></div></div>',
+    '      <label class="sw"><input type="checkbox" id="sw-private" onchange="quickSave(\'enable_private_reply\',this)"><span class="track"></span></label>',
+    '    </div>',
+    '  </div>',
+    '  <div class="card">',
+    '    <h2>\ud83d\udccc \u0627\u0644\u0645\u0646\u0634\u0648\u0631 \u0627\u0644\u0646\u0634\u0637</h2>',
+    '    <div style="font-size:0.8rem;color:#38bdf8;word-break:break-all;background:#0f172a;padding:10px;border-radius:8px;margin-bottom:10px;" id="d-post">\u2014</div>',
+    '    <h2 style="margin-top:4px;">\ud83d\udcce \u0627\u0644\u0645\u0631\u0641\u0642</h2>',
+    '    <div style="font-size:0.8rem;color:#a7f3d0;word-break:break-all;background:#0f172a;padding:10px;border-radius:8px;" id="d-attach">\u2014</div>',
+    '  </div>',
+    '  <div class="card">',
+    '    <h2>\ud83d\udd52 \u0622\u062e\u0631 \u0646\u0634\u0627\u0637</h2>',
+    '    <p style="font-size:0.83rem;color:#cbd5e1;line-height:1.6;" id="d-log">\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0645\u064a\u0644...</p>',
+    '    <button class="btn btn-gray" style="margin-top:10px;" onclick="loadData()">\u062a\u062d\u062f\u064a\u062b \ud83d\udd04</button>',
+    '  </div>',
+    '</div>',
+    '<!-- POST -->',
+    '<div class="page" id="p-post">',
+    '  <div class="card">',
+    '    <h2>\ud83c\udfaf \u0627\u0644\u0645\u0646\u0634\u0648\u0631 \u0627\u0644\u0645\u0633\u062a\u0647\u062f\u0641</h2>',
+    '    <button class="btn btn-gray" onclick="fetchPosts()">\ud83d\udccb \u062c\u0644\u0628 \u0645\u0646\u0634\u0648\u0631\u0627\u062a \u0627\u0644\u0635\u0641\u062d\u0629</button>',
+    '    <div id="posts-list" style="display:none;max-height:260px;overflow-y:auto;margin-bottom:12px;"></div>',
+    '    <label class="lbl">\u0631\u0627\u0628\u0637 \u0627\u0644\u0645\u0646\u0634\u0648\u0631 \u0623\u0648 ID \u0623\u0648 \u0639\u0646\u0648\u0627\u0646\u0647:</label>',
+    '    <input type="text" id="f-postid" placeholder="https://facebook.com/... \u0623\u0648 ID">',
+    '    <div class="info-box" id="post-resolved"></div>',
+    '    <button class="btn btn-blue" onclick="saveAll()">\u062d\u0641\u0638 \u0648\u062a\u0637\u0628\u064a\u0642 \ud83d\udcbe</button>',
+    '  </div>',
+    '</div>',
+    '<!-- ATTACH -->',
+    '<div class="page" id="p-attach">',
+    '  <div class="card">',
+    '    <h2>\ud83d\udcce \u0646\u0648\u0639 \u0627\u0644\u0645\u0631\u0641\u0642</h2>',
+    '    <div class="types">',
+    '      <div class="type-btn on" id="t-none" onclick="pickType(\'none\')"><span class="ico">\ud83d\udeab</span>\u0628\u062f\u0648\u0646 \u0645\u0631\u0641\u0642</div>',
+    '      <div class="type-btn" id="t-image" onclick="pickType(\'image\')"><span class="ico">\ud83d\uddbc\ufe0f</span>\u0635\u0648\u0631\u0629</div>',
+    '      <div class="type-btn" id="t-video" onclick="pickType(\'video\')"><span class="ico">\ud83c\udfa5</span>\u0641\u064a\u062f\u064a\u0648</div>',
+    '      <div class="type-btn" id="t-file" onclick="pickType(\'file\')"><span class="ico">\ud83d\udcc4</span>\u0645\u0644\u0641 PDF</div>',
+    '    </div>',
+    '    <div id="upload-area">',
+    '      <div style="border:2px dashed #475569;border-radius:10px;padding:20px;text-align:center;cursor:pointer;margin-bottom:10px;" onclick="document.getElementById(\'file-inp\').click()">',
+    '        <div id="up-ico" style="font-size:2rem;margin-bottom:6px;">\ud83d\udcc1</div>',
+    '        <div id="up-label" style="font-size:0.85rem;font-weight:600;">\u0627\u0636\u063a\u0637 \u0644\u0627\u062e\u062a\u064a\u0627\u0631 \u0645\u0644\u0641</div>',
+    '        <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">\u0635\u0648\u0631\u0629\u060c \u0641\u064a\u062f\u064a\u0648\u060c \u0623\u0648 PDF</div>',
+    '      </div>',
+    '      <input type="file" id="file-inp" style="display:none;" accept="image/*,video/*,application/pdf" onchange="onFile(this)">',
+    '      <button class="btn btn-green" id="btn-up" onclick="doUpload()" disabled>\u0631\u0641\u0639 \u0648\u0627\u0633\u062a\u062e\u0631\u0627\u062c \u0627\u0644\u0645\u0639\u0631\u0641 \ud83d\ude80</button>',
+    '      <label class="lbl" style="margin-top:8px;">\u0645\u0639\u0631\u0641 \u0627\u0644\u0645\u0631\u0641\u0642 (Attachment ID):</label>',
+    '      <input type="text" id="f-attid" placeholder="Attachment ID">',
+    '    </div>',
+    '    <button class="btn btn-blue" onclick="saveAll()">\u062d\u0641\u0638 \ud83d\udcbe</button>',
+    '  </div>',
+    '</div>',
+    '<!-- MESSAGES -->',
+    '<div class="page" id="p-msg">',
+    '  <div class="card">',
+    '    <h2>\ud83d\udce9 \u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u062e\u0627\u0635 (\u0645\u0627\u0633\u0646\u062c\u0631)</h2>',
+    '    <textarea id="f-privmsg" rows="4" placeholder="\u0646\u0635 \u0627\u0644\u0631\u0633\u0627\u0644\u0629..."></textarea>',
+    '    <h2 style="margin-bottom:8px;">\ud83d\udcac \u0631\u062f\u0648\u062f \u0627\u0644\u062a\u0639\u0644\u064a\u0642\u0627\u062a \u0627\u0644\u0639\u0644\u0646\u064a\u0629</h2>',
+    '    <p style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">\u0643\u0644 \u0633\u0637\u0631 = \u0631\u062f \u0648\u0627\u062d\u062f (\u064a\u062e\u062a\u0627\u0631 \u0627\u0644\u0628\u0648\u062a \u0639\u0634\u0648\u0627\u0626\u064a\u0627\u064b)</p>',
+    '    <textarea id="f-pubreplies" rows="5" placeholder="\u0631\u062f 1&#10;\u0631\u062f 2&#10;\u0631\u062f 3..."></textarea>',
+    '    <button class="btn btn-blue" onclick="saveAll()">\u062d\u0641\u0638 \ud83d\udcbe</button>',
+    '  </div>',
+    '</div>',
+    '<!-- SETTINGS -->',
+    '<div class="page" id="p-set">',
+    '  <div class="card">',
+    '    <h2>\u2699\ufe0f \u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u0635\u0641\u062d\u0629</h2>',
+    '    <label class="lbl">\u0645\u0639\u0631\u0641 \u0627\u0644\u0635\u0641\u062d\u0629 (Page ID):</label>',
+    '    <input type="text" id="f-pageid">',
+    '    <label class="lbl">\u0631\u0645\u0632 \u0627\u0644\u0648\u0635\u0648\u0644 (Access Token):</label>',
+    '    <input type="text" id="f-token">',
+    '    <label class="lbl">\u0631\u0645\u0632 PIN \u062c\u062f\u064a\u062f (\u0627\u062a\u0631\u0643\u0647 \u0641\u0627\u0631\u063a\u0627\u064b \u0644\u0644\u0625\u0628\u0642\u0627\u0621 \u0639\u0644\u0649 \u0627\u0644\u062d\u0627\u0644\u064a):</label>',
+    '    <input type="text" id="f-pin" placeholder="\u0645\u062b\u0627\u0644: 5678">',
+    '    <button class="btn btn-blue" onclick="saveAll()">\u062d\u0641\u0638 \u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a \ud83d\udcbe</button>',
+    '    <button class="btn btn-gray" onclick="lockNow()">\ud83d\udd12 \u0642\u0641\u0644 \u0627\u0644\u0644\u0648\u062d\u0629</button>',
+    '  </div>',
+    '</div>',
+    '<nav class="nav">',
+    '  <button id="nb-dash" class="on" onclick="goPage(\'dash\')"><span class="ico">\ud83c\udfe0</span>\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629</button>',
+    '  <button id="nb-post" onclick="goPage(\'post\')"><span class="ico">\ud83d\udccc</span>\u0627\u0644\u0645\u0646\u0634\u0648\u0631</button>',
+    '  <button id="nb-attach" onclick="goPage(\'attach\')"><span class="ico">\ud83d\udcce</span>\u0627\u0644\u0645\u0631\u0641\u0642</button>',
+    '  <button id="nb-msg" onclick="goPage(\'msg\')"><span class="ico">\ud83d\udcac</span>\u0627\u0644\u0631\u0633\u0627\u0626\u0644</button>',
+    '  <button id="nb-set" onclick="goPage(\'set\')"><span class="ico">\u2699\ufe0f</span>\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a</button>',
+    '</nav>',
+    '<script>',
+    'var selFile=null, selName="", selMime="";',
+    'function toast(msg,err){',
+    '  var t=document.getElementById("toast");',
+    '  t.textContent=msg; t.className="toast show"+(err?" err":"");',
+    '  setTimeout(function(){t.className="toast";},3500);',
+    '}',
+    'function normalPin(s){',
+    '  var ar=["\\u0660","\\u0661","\\u0662","\\u0663","\\u0664","\\u0665","\\u0666","\\u0667","\\u0668","\\u0669"];',
+    '  return String(s||"").trim().replace(/[\\u0660-\\u0669]/g,function(w){return ar.indexOf(w);}).replace(/\\s+/g,"");',
+    '}',
+    'function getPin(){return localStorage.getItem("pin")||"";}',
+    'function goPage(id){',
+    '  ["dash","post","attach","msg","set"].forEach(function(p){',
+    '    document.getElementById("p-"+p).style.display="none";',
+    '    document.getElementById("nb-"+p).className="";',
+    '  });',
+    '  document.getElementById("p-"+id).style.display="block";',
+    '  document.getElementById("nb-"+id).className="on";',
+    '  window.scrollTo(0,0);',
+    '}',
+    'window.onload=function(){',
+    '  ["post","attach","msg","set"].forEach(function(p){',
+    '    document.getElementById("p-"+p).style.display="none";',
+    '  });',
+    '  if(localStorage.getItem("auth")==="1"){',
+    '    document.getElementById("lock").style.display="none";',
+    '    loadData();',
+    '  } else {',
+    '    document.getElementById("lock").style.display="flex";',
+    '  }',
+    '};',
+    'function doLogin(){',
+    '  var raw=document.getElementById("pin-inp").value;',
+    '  var pin=normalPin(raw)||"1234";',
+    '  var err=document.getElementById("pin-err");',
+    '  err.style.display="none";',
+    '  fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pin})})',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(d.success){',
+    '      localStorage.setItem("auth","1"); localStorage.setItem("pin",pin);',
+    '      document.getElementById("lock").style.display="none";',
+    '      loadData(); toast("\\u0645\\u0631\\u062d\\u0628\\u0627\\u064b! \\u062a\\u0645 \\u0627\\u0644\\u062f\\u062e\\u0648\\u0644 \\u2713");',
+    '    } else {',
+    '      err.textContent="\\u0631\\u0645\\u0632 PIN \\u062e\\u0627\\u0637\\u0626!";',
+    '      err.style.display="block";',
+    '    }',
+    '  })',
+    '  .catch(function(){',
+    '    if(pin==="1234"){',
+    '      localStorage.setItem("auth","1"); localStorage.setItem("pin","1234");',
+    '      document.getElementById("lock").style.display="none"; loadData();',
+    '    } else {',
+    '      err.textContent="\\u0627\\u0644\\u0633\\u064a\\u0631\\u0641\\u0631 \\u064a\\u0633\\u062a\\u064a\\u0642\\u0638... \\u0627\\u0646\\u062a\\u0638\\u0631 15 \\u062b\\u0627\\u0646\\u064a\\u0629 \\u0648\\u0623\\u0639\\u062f \\u0627\\u0644\\u0645\\u062d\\u0627\\u0648\\u0644\\u0629.";',
+    '      err.style.display="block";',
+    '    }',
+    '  });',
+    '}',
+    'function lockNow(){',
+    '  localStorage.removeItem("auth");',
+    '  document.getElementById("lock").style.display="flex";',
+    '  toast("\\u062a\\u0645 \\u0642\\u0641\\u0644 \\u0627\\u0644\\u0644\\u0648\\u062d\\u0629 \\ud83d\\udd12");',
+    '}',
+    'function loadData(){',
+    '  var pin=getPin();',
+    '  fetch("/api/config?pin="+encodeURIComponent(pin))',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(!d.success){',
+    '      if(d.message==="UNAUTHORIZED"){',
+    '        localStorage.removeItem("auth");',
+    '        document.getElementById("lock").style.display="flex";',
+    '      }',
+    '      return;',
+    '    }',
+    '    var c=d.config;',
+    '    document.getElementById("f-pageid").value=c.page_id||"";',
+    '    document.getElementById("f-postid").value=c.target_post_id||"";',
+    '    document.getElementById("f-token").value=c.access_token||"";',
+    '    document.getElementById("f-attid").value=c.attachment_id||"";',
+    '    document.getElementById("f-privmsg").value=c.private_message||"";',
+    '    document.getElementById("f-pubreplies").value=(c.public_replies||[]).join("\\n");',
+    '    document.getElementById("sw-like").checked=c.enable_like!==false;',
+    '    document.getElementById("sw-public").checked=c.enable_public_reply!==false;',
+    '    document.getElementById("sw-private").checked=c.enable_private_reply!==false;',
+    '    pickType(c.attachment_type||"file");',
+    '    document.getElementById("s-replies").textContent=d.stats.totalRepliesSent||0;',
+    '    var tmap={none:"\\u0628\\u0644\\u0627 \\u0645\\u0631\\u0641\\u0642 \\ud83d\\udeab",image:"\\u0635\\u0648\\u0631\\u0629 \\ud83d\\uddbc\\ufe0f",video:"\\u0641\\u064a\\u062f\\u064a\\u0648 \\ud83c\\udfa5",file:"\\u0645\\u0644\\u0641 \\ud83d\\udcc4"};',
+    '    document.getElementById("s-type").textContent=tmap[c.attachment_type]||"\\u0645\\u0644\\u0641 \\ud83d\\udcc4";',
+    '    document.getElementById("d-post").textContent=c.target_post_id||"\\u0644\\u0645 \\u064a\\u064f\\u062d\\u062f\\u062f";',
+    '    document.getElementById("d-attach").textContent=c.attachment_type==="none"?"\\u0628\\u062f\\u0648\\u0646 \\u0645\\u0631\\u0641\\u0642":(c.attachment_id?"ID: "+c.attachment_id:"\\u0644\\u0645 \\u064a\\u064f\\u0631\\u0641\\u0639 \\u0628\\u0639\\u062f");',
+    '    document.getElementById("d-log").textContent=d.stats.lastActionLog||"\\u062c\\u0627\\u0647\\u0632";',
+    '  })',
+    '  .catch(function(){});',
+    '}',
+    'function quickSave(key,el){',
+    '  var body={pin:getPin()};',
+    '  body[key]=el.checked;',
+    '  fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(d.success){',
+    '      var n={enable_like:"\\u0627\\u0644\\u0625\\u0639\\u062c\\u0627\\u0628",enable_public_reply:"\\u0627\\u0644\\u0631\\u062f \\u0627\\u0644\\u0639\\u0644\\u0646\\u064a",enable_private_reply:"\\u0631\\u0633\\u0627\\u0644\\u0629 \\u0627\\u0644\\u062e\\u0627\\u0635"};',
+    '      toast((n[key]||key)+": "+(el.checked?"\\u0645\\u064f\\u0641\\u0639\\u064e\\u0651\\u0644 \\u2713":"\\u0645\\u064f\\u0639\\u0637\\u064e\\u0651\\u0644 \\u23f8"));',
+    '    } else { toast(d.message||"\\u062e\\u0637\\u0623 \\u0641\\u064a \\u0627\\u0644\\u062d\\u0641\\u0638",true); el.checked=!el.checked; }',
+    '  })',
+    '  .catch(function(){ toast("\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0627\\u062a\\u0635\\u0627\\u0644",true); el.checked=!el.checked; });',
+    '}',
+    'function pickType(type){',
+    '  ["none","image","video","file"].forEach(function(t){',
+    '    document.getElementById("t-"+t).className="type-btn"+(t===type?" on":"");',
+    '  });',
+    '  var ua=document.getElementById("upload-area");',
+    '  ua.style.display=type==="none"?"none":"block";',
+    '  if(type==="image") document.getElementById("up-ico").textContent="\\ud83d\\uddbc\\ufe0f";',
+    '  else if(type==="video") document.getElementById("up-ico").textContent="\\ud83c\\udfa5";',
+    '  else document.getElementById("up-ico").textContent="\\ud83d\\udcc4";',
+    '  window._selType=type;',
+    '}',
+    'function saveAll(){',
+    '  var pin=getPin();',
+    '  if(!pin){ pin="1234"; localStorage.setItem("pin","1234"); }',
+    '  var body={',
+    '    pin: pin,',
+    '    page_id: document.getElementById("f-pageid").value.trim(),',
+    '    target_post_id: document.getElementById("f-postid").value.trim(),',
+    '    access_token: document.getElementById("f-token").value.trim(),',
+    '    attachment_id: document.getElementById("f-attid").value.trim(),',
+    '    attachment_type: window._selType||"file",',
+    '    enable_like: document.getElementById("sw-like").checked,',
+    '    enable_public_reply: document.getElementById("sw-public").checked,',
+    '    enable_private_reply: document.getElementById("sw-private").checked,',
+    '    private_message: document.getElementById("f-privmsg").value.trim(),',
+    '    public_replies: document.getElementById("f-pubreplies").value.split("\\n").map(function(s){return s.trim();}).filter(function(s){return s.length>0;})',
+    '  };',
+    '  var newPin=document.getElementById("f-pin").value.trim();',
+    '  if(newPin) body.admin_pin=newPin;',
+    '  fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(d.success){',
+    '      if(newPin){ localStorage.setItem("pin",newPin); document.getElementById("f-pin").value=""; }',
+    '      if(d.resolved_post_id){',
+    '        document.getElementById("f-postid").value=d.resolved_post_id;',
+    '        var ri=document.getElementById("post-resolved");',
+    '        ri.textContent="\\u062a\\u0645 \\u062a\\u062d\\u062f\\u064a\\u062f: "+d.resolved_post_id;',
+    '        ri.style.display="block";',
+    '      }',
+    '      toast("\\u062a\\u0645 \\u0627\\u0644\\u062d\\u0641\\u0638 \\u0628\\u0646\\u062c\\u0627\\u062d \\u2713");',
+    '      loadData();',
+    '    } else {',
+    '      toast(d.message||"\\u062e\\u0637\\u0623 \\u0641\\u064a \\u0627\\u0644\\u062d\\u0641\\u0638",true);',
+    '    }',
+    '  })',
+    '  .catch(function(){ toast("\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0627\\u062a\\u0635\\u0627\\u0644 \\u0628\\u0627\\u0644\\u0633\\u064a\\u0631\\u0641\\u0631",true); });',
+    '}',
+    'function fetchPosts(){',
+    '  var pin=getPin();',
+    '  var list=document.getElementById("posts-list");',
+    '  list.style.display="block";',
+    '  list.innerHTML="<p style=\\"text-align:center;color:#94a3b8;padding:10px;\\">\\u062c\\u0627\\u0631\\u064a \\u0627\\u0644\\u062c\\u0644\\u0628... \\u23f3</p>";',
+    '  fetch("/api/page-posts?pin="+encodeURIComponent(pin))',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(!d.success||!d.posts||!d.posts.length){',
+    '      list.innerHTML="<p style=\\"color:#ef4444;text-align:center;padding:10px;\\">"+( d.message||"\\u062a\\u0639\\u0630\\u0631 \\u062c\\u0644\\u0628 \\u0627\\u0644\\u0645\\u0646\\u0634\\u0648\\u0631\\u0627\\u062a")+"</p>";',
+    '      return;',
+    '    }',
+    '    list.innerHTML=d.posts.map(function(p){',
+    '      var txt=p.message?p.message.substring(0,90):"(\\u0645\\u0646\\u0634\\u0648\\u0631 \\u0635\\u0648\\u0631\\u0629)";',
+    '      var date=new Date(p.created_time).toLocaleDateString("ar-EG");',
+    '      var safeId=p.id;',
+    '      var safeTitle=txt.replace(/"/g,"&quot;").replace(/\'/g,"&#39;");',
+    '      return "<div class=\\"post-item\\" onclick=\\"pickPost(\'"+safeId+"\')\\">"+"<div class=\\"pt\\">"+txt+"</div>"+"<div class=\\"pm\\">\\ud83c\uddee\\ud83c\\udde9 "+safeId+" &nbsp; \\ud83d\\udcc5 "+date+"</div>"+"</div>";',
+    '    }).join("");',
+    '  })',
+    '  .catch(function(){',
+    '    list.innerHTML="<p style=\\"color:#ef4444;text-align:center;padding:10px;\\">\\u062e\\u0637\\u0623 \\u0641\\u064a \\u0627\\u0644\\u0627\\u062a\\u0635\\u0627\\u0644</p>";',
+    '  });',
+    '}',
+    'function pickPost(id){',
+    '  document.getElementById("f-postid").value=id;',
+    '  var ri=document.getElementById("post-resolved");',
+    '  ri.textContent="\\u062a\\u0645 \\u0627\\u062e\\u062a\\u064a\\u0627\\u0631 \\u0627\\u0644\\u0645\\u0646\\u0634\\u0648\\u0631: "+id;',
+    '  ri.style.display="block";',
+    '  toast("\\u062a\\u0645 \\u062a\\u062d\\u062f\\u064a\\u062f \\u0627\\u0644\\u0645\\u0646\\u0634\\u0648\\u0631! \\u0627\\u0636\\u063a\\u0637 \\u062d\\u0641\\u0638 \\u2713");',
+    '}',
+    'function onFile(inp){',
+    '  if(!inp.files||!inp.files[0]) return;',
+    '  var f=inp.files[0];',
+    '  selName=f.name; selMime=f.type;',
+    '  document.getElementById("up-label").textContent="\\u062a\\u0645 \\u0627\\u0644\\u0627\\u062e\\u062a\\u064a\\u0627\\u0631: "+f.name;',
+    '  document.getElementById("btn-up").disabled=false;',
+    '  if(f.type.startsWith("image/")) pickType("image");',
+    '  else if(f.type.startsWith("video/")) pickType("video");',
+    '  else pickType("file");',
+    '  var reader=new FileReader();',
+    '  reader.onload=function(e){selFile=e.target.result.split(",")[1];};',
+    '  reader.readAsDataURL(f);',
+    '}',
+    'function doUpload(){',
+    '  if(!selFile) return;',
+    '  var btn=document.getElementById("btn-up");',
+    '  btn.textContent="\\u062c\\u0627\\u0631\\u064a \\u0627\\u0644\\u0631\\u0641\\u0639... \\u23f3"; btn.disabled=true;',
+    '  var pin=getPin();',
+    '  fetch("/api/upload-media",{method:"POST",headers:{"Content-Type":"application/json"},',
+    '    body:JSON.stringify({pin:pin,fileName:selName,fileType:window._selType||"file",mimeType:selMime,fileData:selFile})})',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(d.success&&d.attachment_id){',
+    '      document.getElementById("f-attid").value=d.attachment_id;',
+    '      toast("\\u062a\\u0645 \\u0627\\u0644\\u0631\\u0641\\u0639! ID: "+d.attachment_id+" \\u2713");',
+    '      btn.textContent="\\u062a\\u0645 \\u0627\\u0644\\u0631\\u0641\\u0639 \\u2713"; loadData();',
+    '    } else {',
+    '      toast(d.message||"\\u0641\\u0634\\u0644 \\u0627\\u0644\\u0631\\u0641\\u0639",true);',
+    '      btn.textContent="\\u0625\\u0639\\u0627\\u062f\\u0629 \\u0627\\u0644\\u0645\\u062d\\u0627\\u0648\\u0644\\u0629"; btn.disabled=false;',
+    '    }',
+    '  })',
+    '  .catch(function(){',
+    '    toast("\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0631\\u0641\\u0639",true);',
+    '    btn.textContent="\\u0625\\u0639\\u0627\\u062f\\u0629 \\u0627\\u0644\\u0645\\u062d\\u0627\\u0648\\u0644\\u0629"; btn.disabled=false;',
+    '  });',
+    '}',
+    '</script>',
+    '</body>',
+    '</html>'
+  ];
+  return html.join('\n');
 }
 
 // ============================================================
-// HTTP SERVER
+// SERVER
 // ============================================================
 function checkPin(pin) {
   const p = normalizePin(pin);
   const expected = normalizePin(config.admin_pin || '1234');
+  // Accept if matches saved pin, OR always accept '1234' as fallback
   return p === expected || p === '1234' || !config.admin_pin;
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const path_ = url.pathname;
+
+  // Helper: read JSON body
+  function readBody() {
+    return new Promise(resolve => {
+      let b = '';
+      req.on('data', c => b += c);
+      req.on('end', () => {
+        try { resolve(JSON.parse(b)); }
+        catch(e) { resolve({}); }
+      });
+    });
+  }
+
+  // Helper: send JSON
+  function sendJson(code, data) {
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(data));
+  }
 
   // Serve UI
   if (path_ === '/' || path_ === '/app') {
@@ -787,125 +704,130 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Read body helper
-  function readBody() {
-    return new Promise(resolve => {
-      let b = '';
-      req.on('data', c => b += c);
-      req.on('end', () => { try { resolve(JSON.parse(b)); } catch(e) { resolve({}); } });
-    });
-  }
-
-  // LOGIN
+  // POST /api/login
   if (path_ === '/api/login' && req.method === 'POST') {
-    const body = await readBody();
-    const ok = checkPin(body.pin);
-    res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: ok }));
-    return;
-  }
-
-  // GET CONFIG
-  if (path_ === '/api/config' && req.method === 'GET') {
-    if (!checkPin(url.searchParams.get('pin'))) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false }));
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, config, stats: { totalRepliesSent: totalReplies, lastActionLog: lastLog } }));
-    return;
-  }
-
-  // POST CONFIG
-  if (path_ === '/api/config' && req.method === 'POST') {
-    const body = await readBody();
-    if (!checkPin(body.pin)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false }));
-      return;
-    }
-    const oldPost = config.target_post_id;
-    if (body.page_id) config.page_id = body.page_id;
-    if (body.access_token) config.access_token = body.access_token;
-    if (body.attachment_id !== undefined) config.attachment_id = body.attachment_id;
-    if (body.attachment_type) config.attachment_type = body.attachment_type;
-    if (body.enable_like !== undefined) config.enable_like = !!body.enable_like;
-    if (body.enable_public_reply !== undefined) config.enable_public_reply = !!body.enable_public_reply;
-    if (body.enable_private_reply !== undefined) config.enable_private_reply = !!body.enable_private_reply;
-    if (body.private_message !== undefined) config.private_message = body.private_message;
-    if (body.public_replies && Array.isArray(body.public_replies)) config.public_replies = body.public_replies;
-    if (body.admin_pin) config.admin_pin = body.admin_pin;
-
-    let resolved = config.target_post_id;
-    if (body.target_post_id) {
-      resolved = await resolvePostId(body.target_post_id);
-      config.target_post_id = resolved;
-    }
-
-    if (oldPost !== config.target_post_id) {
-      processedSet.clear();
-      processingSet.clear();
-      try { fs.writeFileSync(PROCESSED_FILE, '[]', 'utf8'); } catch(e) {}
-      console.log('[CONFIG] Post changed to: ' + config.target_post_id);
-    }
-
-    saveConfig();
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, resolved_post_id: config.target_post_id }));
-    return;
-  }
-
-  // GET PAGE POSTS
-  if (path_ === '/api/page-posts' && req.method === 'GET') {
-    if (!checkPin(url.searchParams.get('pin'))) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false }));
-      return;
-    }
     try {
+      const body = await readBody();
+      const ok = checkPin(body.pin);
+      sendJson(200, { success: ok, message: ok ? 'OK' : '\u0631\u0645\u0632 PIN \u062e\u0627\u0637\u0626' });
+    } catch(e) {
+      sendJson(500, { success: false, message: e.message });
+    }
+    return;
+  }
+
+  // GET /api/config
+  if (path_ === '/api/config' && req.method === 'GET') {
+    try {
+      const pin = url.searchParams.get('pin');
+      if (!checkPin(pin)) {
+        sendJson(200, { success: false, message: 'UNAUTHORIZED' });
+        return;
+      }
+      sendJson(200, {
+        success: true,
+        config: config,
+        stats: { totalRepliesSent: totalReplies, lastActionLog: lastLog }
+      });
+    } catch(e) {
+      sendJson(500, { success: false, message: e.message });
+    }
+    return;
+  }
+
+  // POST /api/config
+  if (path_ === '/api/config' && req.method === 'POST') {
+    try {
+      const body = await readBody();
+      if (!checkPin(body.pin)) {
+        sendJson(200, { success: false, message: '\u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u062a\u062d\u0642\u0642: \u0627\u0644\u0631\u0645\u0632 \u063a\u064a\u0631 \u0635\u062d\u064a\u062d' });
+        return;
+      }
+
+      const oldPost = config.target_post_id;
+
+      // Update config fields
+      if (body.page_id && body.page_id.length > 0) config.page_id = body.page_id;
+      if (body.access_token && body.access_token.length > 0) config.access_token = body.access_token;
+      if (body.attachment_id !== undefined) config.attachment_id = body.attachment_id;
+      if (body.attachment_type && body.attachment_type.length > 0) config.attachment_type = body.attachment_type;
+      if (body.enable_like !== undefined) config.enable_like = !!body.enable_like;
+      if (body.enable_public_reply !== undefined) config.enable_public_reply = !!body.enable_public_reply;
+      if (body.enable_private_reply !== undefined) config.enable_private_reply = !!body.enable_private_reply;
+      if (body.private_message !== undefined) config.private_message = body.private_message;
+      if (body.public_replies && Array.isArray(body.public_replies) && body.public_replies.length > 0) {
+        config.public_replies = body.public_replies;
+      }
+      if (body.admin_pin && body.admin_pin.length > 0) config.admin_pin = body.admin_pin;
+
+      // Resolve post ID
+      let resolvedPostId = config.target_post_id;
+      if (body.target_post_id && body.target_post_id.length > 0) {
+        resolvedPostId = await resolvePostId(body.target_post_id);
+        config.target_post_id = resolvedPostId;
+      }
+
+      // Clear processed IDs if post changed
+      if (oldPost !== config.target_post_id) {
+        processedSet.clear();
+        processingSet.clear();
+        try { fs.writeFileSync(PROCESSED_FILE, '[]', 'utf8'); } catch(e) {}
+        console.log('[CONFIG] Post changed to: ' + config.target_post_id);
+      }
+
+      saveConfig();
+      sendJson(200, { success: true, resolved_post_id: config.target_post_id });
+    } catch(e) {
+      console.error('[CONFIG POST ERROR]', e.message);
+      sendJson(500, { success: false, message: '\u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u0633\u064a\u0631\u0641\u0631: ' + e.message });
+    }
+    return;
+  }
+
+  // GET /api/page-posts
+  if (path_ === '/api/page-posts' && req.method === 'GET') {
+    try {
+      if (!checkPin(url.searchParams.get('pin'))) {
+        sendJson(200, { success: false, message: 'UNAUTHORIZED' });
+        return;
+      }
       const data = await request(
         'https://graph.facebook.com/v19.0/' + config.page_id +
-        '/posts?fields=id,message,created_time&limit=15&access_token=' + config.access_token
+        '/posts?fields=id,message,created_time&limit=20&access_token=' + config.access_token
       );
       if (data && data.data) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, posts: data.data }));
+        sendJson(200, { success: true, posts: data.data });
       } else {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false }));
+        const errMsg = (data && data.error) ? data.error.message : '\u062a\u0639\u0630\u0631 \u062c\u0644\u0628 \u0627\u0644\u0645\u0646\u0634\u0648\u0631\u0627\u062a';
+        sendJson(200, { success: false, message: errMsg });
       }
     } catch(e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: e.message }));
+      sendJson(500, { success: false, message: e.message });
     }
     return;
   }
 
-  // UPLOAD MEDIA
+  // POST /api/upload-media
   if (path_ === '/api/upload-media' && req.method === 'POST') {
-    const body = await readBody();
-    if (!checkPin(body.pin)) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false }));
-      return;
-    }
     try {
+      const body = await readBody();
+      if (!checkPin(body.pin)) {
+        sendJson(200, { success: false, message: 'UNAUTHORIZED' });
+        return;
+      }
       const buf = Buffer.from(body.fileData, 'base64');
       const result = await uploadMedia(buf, body.fileName || 'file', body.fileType || 'file', body.mimeType, config.access_token);
       if (result && result.attachment_id) {
         config.attachment_id = result.attachment_id;
         config.attachment_type = body.fileType || 'file';
         saveConfig();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, attachment_id: result.attachment_id }));
+        sendJson(200, { success: true, attachment_id: result.attachment_id });
       } else {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: (result && result.error) ? result.error.message : 'Upload failed' }));
+        const errMsg = (result && result.error) ? result.error.message : 'Upload failed';
+        sendJson(200, { success: false, message: errMsg });
       }
     } catch(e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ success: false, message: e.message }));
+      sendJson(500, { success: false, message: e.message });
     }
     return;
   }
@@ -913,8 +835,8 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404); res.end('Not Found');
 });
 
-process.on('uncaughtException', e => console.error('[ERR]', e.message));
-process.on('unhandledRejection', e => console.error('[ERR]', e));
+process.on('uncaughtException', e => console.error('[UNCAUGHT]', e.message));
+process.on('unhandledRejection', e => console.error('[REJECTION]', e));
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
