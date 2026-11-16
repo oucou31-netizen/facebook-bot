@@ -416,6 +416,22 @@ function getHtml() {
     '<!-- SETTINGS -->',
     '<div class="page" id="p-set">',
     '  <div class="card">',
+    '    <h2>\ud83d\udd0d \u0623\u062f\u0627\u0629 \u0645\u0639\u0631\u0641\u0629 ID \u0627\u0644\u0635\u0641\u062d\u0629</h2>',
+    '    <label class="lbl">\u0636\u0639 \u0631\u0627\u0628\u0637 \u0635\u0641\u062d\u0629 \u0641\u064a\u0633\u0628\u0648\u0643:</label>',
+    '    <input type="text" id="f-pageurl" placeholder="https://www.facebook.com/YourPageName">',
+    '    <button class="btn btn-green" id="btn-findpage" onclick="findPageId()">\ud83d\udd0d \u062c\u0644\u0628 ID \u0627\u0644\u0635\u0641\u062d\u0629 \u062a\u0644\u0642\u0627\u0626\u064a\u0627\u064b</button>',
+    '    <div id="page-result" style="display:none;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;margin-bottom:12px;">',
+    '      <div style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">\u0646\u062a\u064a\u062c\u0629 \u0627\u0644\u0628\u062d\u062b:</div>',
+    '      <div id="page-result-name" style="font-size:0.95rem;font-weight:700;color:#f1f5f9;margin-bottom:6px;"></div>',
+    '      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">',
+    '        <span style="font-size:0.75rem;color:#94a3b8;">Page ID:</span>',
+    '        <span id="page-result-id" style="font-family:monospace;font-size:0.95rem;color:#60a5fa;font-weight:700;word-break:break-all;"></span>',
+    '        <button onclick="usePageId()" style="background:#2563eb;color:white;border:none;padding:5px 12px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;">\u0627\u0633\u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0627\u0644 ID \u2713</button>',
+    '      </div>',
+    '      <div id="page-result-fans" style="font-size:0.72rem;color:#94a3b8;margin-top:4px;"></div>',
+    '    </div>',
+    '  </div>',
+    '  <div class="card">',
     '    <h2>\u2699\ufe0f \u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u0635\u0641\u062d\u0629</h2>',
     '    <label class="lbl">\u0645\u0639\u0631\u0641 \u0627\u0644\u0635\u0641\u062d\u0629 (Page ID):</label>',
     '    <input type="text" id="f-pageid">',
@@ -635,6 +651,41 @@ function getHtml() {
     '  reader.onload=function(e){selFile=e.target.result.split(",")[1];};',
     '  reader.readAsDataURL(f);',
     '}',
+    'function findPageId(){',
+    '  var pageUrl=document.getElementById("f-pageurl").value.trim();',
+    '  if(!pageUrl){ toast("\\u0636\\u0639 \\u0631\\u0627\\u0628\\u0637 \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629 \\u0623\\u0648\\u0644\\u0627\\u064b",true); return; }',
+    '  var pin=getPin();',
+    '  var resultBox=document.getElementById("page-result");',
+    '  resultBox.style.display="none";',
+    '  document.querySelector("button[onclick=\'findPageId()\']").textContent="\\u062c\\u0627\\u0631\\u064a \\u0627\\u0644\\u0628\\u062d\\u062b... \\u23f3";',
+    '  document.querySelector("button[onclick=\'findPageId()\']").disabled=true;',
+    '  fetch("/api/find-page?pin="+encodeURIComponent(pin)+"&url="+encodeURIComponent(pageUrl))',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    var btn=document.querySelector("button[onclick=\'findPageId()\']");',
+    '    btn.textContent="\\ud83d\\udd0d \\u062c\\u0644\\u0628 ID \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629 \\u062a\\u0644\\u0642\\u0627\\u0626\\u064a\\u0627\\u064b"; btn.disabled=false;',
+    '    if(d.success){',
+    '      document.getElementById("page-result-name").textContent="\\ud83d\\udcd6 "+d.page_name;',
+    '      document.getElementById("page-result-id").textContent=d.page_id;',
+    '      document.getElementById("page-result-fans").textContent=d.fan_count?"\\ud83d\udc65 \\u0639\\u062f\\u062f \\u0627\\u0644\\u0645\\u062a\\u0627\\u0628\\u0639\\u064a\\u0646: "+Number(d.fan_count).toLocaleString("ar-EG"):"";',
+    '      resultBox.style.display="block";',
+    '      toast("\\u062a\\u0645 \\u0627\\u0644\\u0639\\u062b\\u0648\\u0631 \\u0639\\u0644\\u0649 \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629 \\u2713");',
+    '    } else {',
+    '      toast(d.message||"\\u0644\\u0645 \\u064a\\u062a\\u0645 \\u0627\\u0644\\u0639\\u062b\\u0648\\u0631 \\u0639\\u0644\\u0649 \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629",true);',
+    '    }',
+    '  })',
+    '  .catch(function(){',
+    '    var btn=document.querySelector("button[onclick=\'findPageId()\']");',
+    '    btn.textContent="\\ud83d\\udd0d \\u062c\\u0644\\u0628 ID \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629 \\u062a\\u0644\\u0642\\u0627\\u0626\\u064a\\u0627\\u064b"; btn.disabled=false;',
+    '    toast("\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0627\\u062a\\u0635\\u0627\\u0644",true);',
+    '  });',
+    '}',
+    'function usePageId(){',
+    '  var id=document.getElementById("page-result-id").textContent;',
+    '  if(!id) return;',
+    '  document.getElementById("f-pageid").value=id;',
+    '  toast("\\u062a\\u0645 \\u0646\\u0633\\u062e \\u0627\\u0644 ID \\u0625\\u0644\\u0649 \\u062d\\u0642\\u0644 \\u0645\\u0639\\u0631\\u0641 \\u0627\\u0644\\u0635\\u0641\\u062d\\u0629 \\u2713. \\u0627\\u0636\\u063a\\u0637 \\u062d\\u0641\\u0638 \\u0644\\u062a\\u0637\\u0628\\u064a\\u0642\\u0647.");',
+    '}',
     'function doUpload(){',
     '  if(!selFile) return;',
     '  var btn=document.getElementById("btn-up");',
@@ -799,6 +850,64 @@ const server = http.createServer(async (req, res) => {
         sendJson(200, { success: true, posts: data.data });
       } else {
         const errMsg = (data && data.error) ? data.error.message : '\u062a\u0639\u0630\u0631 \u062c\u0644\u0628 \u0627\u0644\u0645\u0646\u0634\u0648\u0631\u0627\u062a';
+        sendJson(200, { success: false, message: errMsg });
+      }
+    } catch(e) {
+      sendJson(500, { success: false, message: e.message });
+    }
+    return;
+  }
+
+  // GET /api/find-page  — resolve page URL → page ID + name
+  if (path_ === '/api/find-page' && req.method === 'GET') {
+    try {
+      if (!checkPin(url.searchParams.get('pin'))) {
+        sendJson(200, { success: false, message: 'UNAUTHORIZED' });
+        return;
+      }
+      const pageUrl = url.searchParams.get('url') || '';
+      if (!pageUrl) {
+        sendJson(200, { success: false, message: '\u0627\u0644\u0631\u062c\u0627\u0621 \u0625\u062f\u062e\u0627\u0644 \u0631\u0627\u0628\u0637 \u0627\u0644\u0635\u0641\u062d\u0629' });
+        return;
+      }
+
+      // Extract username or numeric ID from URL
+      // Handles: facebook.com/pagename  or  facebook.com/profile.php?id=123  or  fb.com/pagename
+      let identifier = '';
+      const numericMatch = pageUrl.match(/[?&]id=(\d+)/);
+      if (numericMatch) {
+        identifier = numericMatch[1];
+      } else {
+        // Extract last path segment
+        const pathMatch = pageUrl.replace(/\/$/, '').match(/facebook\.com\/([^/?#]+)/i) ||
+                         pageUrl.replace(/\/$/, '').match(/fb\.com\/([^/?#]+)/i);
+        if (pathMatch) {
+          identifier = pathMatch[1];
+          // Skip generic paths
+          if (['profile.php','pages','groups','watch','marketplace'].includes(identifier.toLowerCase())) {
+            identifier = '';
+          }
+        }
+      }
+
+      if (!identifier) {
+        sendJson(200, { success: false, message: '\u062a\u0639\u0630\u0631 \u0627\u0633\u062a\u062e\u0631\u0627\u062c \u0627\u0633\u0645 \u0627\u0644\u0635\u0641\u062d\u0629 \u0645\u0646 \u0627\u0644\u0631\u0627\u0628\u0637' });
+        return;
+      }
+
+      const apiUrl = 'https://graph.facebook.com/v19.0/' + encodeURIComponent(identifier) +
+        '?fields=id,name,fan_count&access_token=' + config.access_token;
+      const data = await request(apiUrl);
+
+      if (data && data.id) {
+        sendJson(200, {
+          success: true,
+          page_id: data.id,
+          page_name: data.name || identifier,
+          fan_count: data.fan_count || 0
+        });
+      } else {
+        const errMsg = (data && data.error) ? data.error.message : '\u0644\u0645 \u064a\u062a\u0645 \u0627\u0644\u0639\u062b\u0648\u0631 \u0639\u0644\u0649 \u0627\u0644\u0635\u0641\u062d\u0629. \u062a\u0623\u0643\u062f \u0645\u0646 \u0635\u062d\u0629 \u0627\u0644\u0631\u0627\u0628\u0637 \u0648\u0627\u0644\u062a\u0648\u0643\u0646';
         sendJson(200, { success: false, message: errMsg });
       }
     } catch(e) {
