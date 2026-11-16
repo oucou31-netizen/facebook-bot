@@ -96,11 +96,22 @@ function request(url, opts, body) {
 // ============================================================
 // BOT ACTIONS
 // ============================================================
-async function likeComment(id) {
+async function likeComment(id, name) {
   try {
-    await request('https://graph.facebook.com/v19.0/' + id + '/likes?access_token=' + config.access_token, { method: 'POST' });
-    console.log('[LIKE] ' + id);
-  } catch(e) {}
+    const res = await request('https://graph.facebook.com/v19.0/' + id + '/likes?access_token=' + config.access_token, { method: 'POST' });
+    if (res && res.error) {
+      console.error('[LIKE ERROR] ' + id + ':', res.error.message);
+      lastLog = '\u274c \u0641\u0634\u0644 \u0627\u0644\u0625\u0639\u062c\u0627\u0628 \u0628\u062a\u0639\u0644\u064a\u0642 ' + (name || id) + ': ' + res.error.message;
+      return false;
+    }
+    console.log('[LIKE OK] ' + id + ' for ' + (name || id));
+    lastLog = '\ud83d\udc4d \u062a\u0645 \u0627\u0644\u0625\u0639\u062c\u0627\u0628 \u0628\u062a\u0639\u0644\u064a\u0642 ' + (name || '\u0645\u062a\u0627\u0628\u0639') + ' \u2014 ' + new Date().toLocaleTimeString('ar-EG');
+    return true;
+  } catch(e) {
+    console.error('[LIKE EXCEPTION]', e.message);
+    lastLog = '\u274c \u062e\u0637\u0623 \u0627\u062a\u0635\u0627\u0644 \u0623\u062b\u0646\u0627\u0621 \u0627\u0644\u0625\u0639\u062c\u0627\u0628: ' + e.message;
+    return false;
+  }
 }
 
 async function replyPublic(id) {
@@ -157,23 +168,37 @@ async function sendPrivate(commentId, senderId, name) {
 async function processComment(c) {
   const id = c.id;
   if (c.from && c.from.id === config.page_id) return;
-  if (c.parent && c.parent.id) return;
-  if (c.comments && c.comments.data && c.comments.data.some(s => s.from && s.from.id === config.page_id)) {
-    markProcessed(id); return;
-  }
+  if (c.parent && c.parent.id) return; // Skip replies - only main comments
   if (processedSet.has(id) || processingSet.has(id)) return;
   processingSet.add(id);
   markProcessed(id);
+
   const name = c.from ? c.from.name : '\u0645\u062a\u0627\u0628\u0639';
   console.log('[NEW] ' + id + ' | ' + name + ' | "' + (c.message || '') + '"');
-  if (config.enable_like !== false) await likeComment(id);
-  if (config.enable_public_reply !== false) await replyPublic(id);
+
+  // 1. Like
+  let likeOk = false;
+  if (config.enable_like !== false) {
+    likeOk = await likeComment(id, name);
+  }
+
+  // Check if page already posted a public reply on this comment
+  const alreadyReplied = c.comments && c.comments.data && c.comments.data.some(s => s.from && s.from.id === config.page_id);
+
+  // 2. Public reply
+  if (config.enable_public_reply !== false && !alreadyReplied) {
+    await replyPublic(id);
+  }
+
+  // 3. Private reply
   if (config.enable_private_reply !== false) {
     await sendPrivate(id, c.from ? c.from.id : null, name);
   } else {
     totalReplies++;
-    lastLog = '\u062a\u0645\u062a \u0645\u0639\u0627\u0644\u062c\u0629 \u062a\u0639\u0644\u064a\u0642 ' + name;
     processingSet.delete(id);
+    if (config.enable_like === false) {
+      lastLog = '\u062a\u0645\u062a \u0645\u0639\u0627\u0644\u062c\u0629 \u062a\u0639\u0644\u064a\u0642 ' + name + ' \u2014 ' + new Date().toLocaleTimeString('ar-EG');
+    }
   }
 }
 
@@ -183,10 +208,15 @@ async function checkComments() {
   isRunning = true;
   try {
     const url = 'https://graph.facebook.com/v19.0/' + config.target_post_id +
-      '/comments?filter=toplevel&fields=id,from,message,parent,comments{id,from}&limit=50&access_token=' + config.access_token;
+      '/comments?filter=toplevel&fields=id,from,message,parent,comments{id,from,message}&limit=50&access_token=' + config.access_token;
     const data = await request(url);
     if (data && data.data) {
-      for (const c of data.data) await processComment(c);
+      for (const c of data.data) {
+        await processComment(c);
+      }
+    } else if (data && data.error) {
+      console.error('[CRON ERROR]', data.error.message);
+      lastLog = '\u274c \u062e\u0637\u0623 \u0641\u064a\u0633\u0628\u0648\u0643: ' + data.error.message;
     }
   } catch(e) {
     console.error('[CRON] ' + e.message);
@@ -364,6 +394,7 @@ function getHtml() {
     '    <h2>\ud83d\udd52 \u0622\u062e\u0631 \u0646\u0634\u0627\u0637</h2>',
     '    <p style="font-size:0.83rem;color:#cbd5e1;line-height:1.6;" id="d-log">\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0645\u064a\u0644...</p>',
     '    <button class="btn btn-gray" style="margin-top:10px;" onclick="loadData()">\u062a\u062d\u062f\u064a\u062b \ud83d\udd04</button>',
+    '    <button class="btn btn-blue" style="margin-top:4px;" onclick="clearProcessed()">\ud83d\udd04 \u0625\u0639\u0627\u062f\u0629 \u0641\u062d\u0635 \u0648\u0625\u0639\u062c\u0627\u0628 \u0628\u062a\u0639\u0644\u064a\u0642\u0627\u062a \u0627\u0644\u0645\u0646\u0634\u0648\u0631</button>',
     '  </div>',
     '</div>',
     '<!-- POST -->',
@@ -545,6 +576,19 @@ function getHtml() {
     '    document.getElementById("d-log").textContent=d.stats.lastActionLog||"\\u062c\\u0627\\u0647\\u0632";',
     '  })',
     '  .catch(function(){});',
+    '}',
+    'function clearProcessed(){',
+    '  var pin=getPin();',
+    '  toast("\\u062c\\u0627\\u0631\\u064a \\u0625\\u0639\\u0627\\u062f\\u0629 \\u0641\\u062d\\u0635 \\u0627\\u0644\\u0645\\u0646\\u0634\\u0648\u0631... \\u23f3");',
+    '  fetch("/api/clear-processed?pin="+encodeURIComponent(pin))',
+    '  .then(function(r){return r.json();})',
+    '  .then(function(d){',
+    '    if(d.success){',
+    '      toast(d.message||"\\u062a\\u0645 \\u0627\\u0644\\u0628\\u062f\\u0621 \\u0628\\u0627\\u0644\\u0641\\u062d\\u0635 \\u2713");',
+    '      setTimeout(loadData, 2000);',
+    '    } else { toast(d.message||"\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0623\u0645\\u0631", true); }',
+    '  })',
+    '  .catch(function(){ toast("\\u062a\\u0639\\u0630\\u0631 \\u0627\\u0644\\u0627\\u062a\\u0635\\u0627\\u0644", true); });',
     '}',
     'function quickSave(key,el){',
     '  var body={pin:getPin()};',
@@ -935,6 +979,25 @@ const server = http.createServer(async (req, res) => {
         const errMsg = (result && result.error) ? result.error.message : 'Upload failed';
         sendJson(200, { success: false, message: errMsg });
       }
+    } catch(e) {
+      sendJson(500, { success: false, message: e.message });
+    }
+    return;
+  }
+
+  // GET /api/clear-processed
+  if (path_ === '/api/clear-processed' && req.method === 'GET') {
+    try {
+      if (!checkPin(url.searchParams.get('pin'))) {
+        sendJson(200, { success: false, message: 'UNAUTHORIZED' });
+        return;
+      }
+      processedSet.clear();
+      processingSet.clear();
+      try { fs.writeFileSync(PROCESSED_FILE, '[]', 'utf8'); } catch(e) {}
+      lastLog = '\ud83d\udd04 \u062a\u0645 \u0645\u0633\u062d \u0630\u0627\u0643\u0631\u0629 \u0627\u0644\u062a\u0639\u0644\u064a\u0642\u0627\u062a \u0648\u062c\u0627\u0631\u064a \u0625\u0639\u0627\u062f\u0629 \u0627\u0644\u0641\u062d\u0635 \u0627\u0644\u0622\u0646';
+      checkComments();
+      sendJson(200, { success: true, message: '\u062a\u0645 \u0645\u0633\u062d \u0627\u0644\u0633\u062c\u0644 \u0648\u0628\u062f\u0621 \u0641\u062d\u0635 \u062a\u0639\u0644\u064a\u0642\u0627\u062a \u0627\u0644\u0645\u0646\u0634\u0648\u0631 \u0643\u0627\u0645\u0644\u0629' });
     } catch(e) {
       sendJson(500, { success: false, message: e.message });
     }
